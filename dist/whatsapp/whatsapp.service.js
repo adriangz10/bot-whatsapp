@@ -57,6 +57,37 @@ let WhatsAppService = class WhatsAppService {
         }
         return data;
     }
+    async getProfilePicture(phoneNumber) {
+        if (!this.accessToken) {
+            return null;
+        }
+        try {
+            const url = `https://graph.facebook.com/${this.apiVersion}/${phoneNumber}/whatsapp_business_profile`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${this.accessToken}`,
+                },
+            });
+            const data = await response.json();
+            if (data?.profile_picture_url) {
+                return data.profile_picture_url;
+            }
+            const fallbackUrl = `https://graph.facebook.com/${this.apiVersion}/${phoneNumber}/profile_picture`;
+            const fallbackResponse = await fetch(fallbackUrl, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${this.accessToken}`,
+                },
+            });
+            const fallbackData = await fallbackResponse.json();
+            return fallbackData?.data?.url || fallbackData?.url || null;
+        }
+        catch (error) {
+            console.error('Error fetching profile picture:', error);
+            return null;
+        }
+    }
     async sendMessage(to, message) {
         if (!this.accessToken || !this.phoneNumberId) {
             throw new Error('WhatsApp credentials not configured');

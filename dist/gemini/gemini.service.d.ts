@@ -8,7 +8,7 @@ export declare class GeminiService {
     private readonly googleDocsService;
     private readonly genAI;
     constructor(configService: ConfigService, conversationService: ConversationService, googleDocsService: GoogleDocsService);
-    chat(userId: string, userPrompt: string): Promise<string>;
+    chat(userId: string, userPrompt: string, loadHistory?: boolean): Promise<string>;
     clearHistory(userId: string): Promise<void>;
     getHistory(userId: string): Promise<Content[]>;
 }

@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Content } from '@google/generative-ai';
 import { Message } from './entities/message.entity';
 import { ChatsService } from '../chats/chats.service';
+import { EventsService } from '../events/events.service';
 
 @Injectable()
 export class ConversationService {
@@ -12,6 +13,7 @@ export class ConversationService {
     private readonly messageRepository: Repository<Message>,
     @Inject(forwardRef(() => ChatsService))
     private readonly chatsService: ChatsService,
+    private readonly eventsService: EventsService,
   ) {}
 
   async getHistory(userId: string, limit: number = 50): Promise<Content[]> {
@@ -48,6 +50,9 @@ export class ConversationService {
       chatId,
     });
     const savedMessage = await this.messageRepository.save(message);
+
+    // Emitir evento WebSocket
+    this.eventsService.emit('new_message', savedMessage);
 
     // Actualizar último mensaje en el chat
     if (updateChat && chatId) {

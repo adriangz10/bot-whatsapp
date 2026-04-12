@@ -7,5 +7,6 @@ export declare class WhatsAppService {
     constructor(configService: ConfigService);
     private getApiUrl;
     sendTemplateMessage(to: string, templateName: string, languageCode?: string): Promise<any>;
+    getProfilePicture(phoneNumber: string): Promise<string | null>;
     sendMessage(to: string, message: string): Promise<any>;
 }

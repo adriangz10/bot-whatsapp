@@ -19,14 +19,17 @@ const whatsapp_service_1 = require("./whatsapp.service");
 const whatsapp_dto_1 = require("./whatsapp.dto");
 const whatsapp_webhook_dto_1 = require("./whatsapp-webhook.dto");
 const gemini_service_1 = require("../gemini/gemini.service");
+const chats_service_1 = require("../chats/chats.service");
 let WhatsAppController = class WhatsAppController {
     whatsappService;
     geminiService;
     configService;
-    constructor(whatsappService, geminiService, configService) {
+    chatsService;
+    constructor(whatsappService, geminiService, configService, chatsService) {
         this.whatsappService = whatsappService;
         this.geminiService = geminiService;
         this.configService = configService;
+        this.chatsService = chatsService;
     }
     async sendMessage(body) {
         return await this.whatsappService.sendMessage(body.to, body.message);
@@ -51,9 +54,22 @@ let WhatsAppController = class WhatsAppController {
             if (!text) {
                 return 'No text in message';
             }
+            const contact = change?.value?.contacts?.[0];
+            const contactName = contact?.profile?.name || null;
+            const chat = await this.chatsService.upsertByUserId(from, contactName || undefined);
+            if (chat) {
+                const profilePictureUrl = await this.whatsappService.getProfilePicture(from);
+                if (profilePictureUrl) {
+                    await this.chatsService.update(chat.id, { profilePictureUrl });
+                }
+            }
+            const isInactive = chat ? this.chatsService.isInactive(chat, 30) : false;
+            if (isInactive) {
+                await this.chatsService.reactivate(chat.id);
+            }
             const timeoutMs = 30000;
             const response = await Promise.race([
-                this.geminiService.chat(from, text),
+                this.geminiService.chat(from, text, !isInactive),
                 new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini timeout')), timeoutMs)),
             ]);
             await this.whatsappService.sendMessage(from, response);
@@ -93,6 +109,7 @@ exports.WhatsAppController = WhatsAppController = __decorate([
     (0, common_1.Controller)('whatsapp'),
     __metadata("design:paramtypes", [whatsapp_service_1.WhatsAppService,
         gemini_service_1.GeminiService,
-        config_1.ConfigService])
+        config_1.ConfigService,
+        chats_service_1.ChatsService])
 ], WhatsAppController);
 //# sourceMappingURL=whatsapp.controller.js.map

@@ -1,6 +1,7 @@
 import { Message } from '../../conversation/entities/message.entity';
 export declare enum ChatStatus {
     ACTIVE = "active",
+    INACTIVE = "inactive",
     PENDING = "pending",
     RESOLVED = "resolved",
     ARCHIVED = "archived"
@@ -14,6 +15,7 @@ export declare class Chat {
     id: number;
     userId: string;
     userName: string;
+    profilePictureUrl: string;
     lastMessage: string;
     lastMessageAt: Date;
     status: ChatStatus;

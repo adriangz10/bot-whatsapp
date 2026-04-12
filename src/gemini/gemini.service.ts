@@ -20,9 +20,9 @@ export class GeminiService {
     this.genAI = new GoogleGenerativeAI(apiKey);
   }
 
-  async chat(userId: string, userPrompt: string): Promise<string> {
-    // Cargar historial desde la base de datos
-    const history = await this.conversationService.getHistory(userId);
+  async chat(userId: string, userPrompt: string, loadHistory: boolean = true): Promise<string> {
+    // Cargar historial desde la base de datos (solo si la conversación está activa)
+    const history = loadHistory ? await this.conversationService.getHistory(userId) : [];
 
     // Obtener contexto del documento de Google Docs
     const context = this.googleDocsService.getContext();

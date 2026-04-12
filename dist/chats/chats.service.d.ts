@@ -2,6 +2,7 @@ import { Repository } from 'typeorm';
 import { Chat, ChatStatus, ChatPriority } from './entities/chat.entity';
 import { Message } from '../conversation/entities/message.entity';
 import { UpdateChatDto, CreateChatDto } from './dto/chat.dto';
+import { EventsService } from '../events/events.service';
 export interface ChatFilters {
     status?: ChatStatus;
     priority?: ChatPriority;
@@ -24,7 +25,8 @@ export interface PaginatedResult<T> {
 export declare class ChatsService {
     private readonly chatRepository;
     private readonly messageRepository;
-    constructor(chatRepository: Repository<Chat>, messageRepository: Repository<Message>);
+    private readonly eventsService;
+    constructor(chatRepository: Repository<Chat>, messageRepository: Repository<Message>, eventsService: EventsService);
     findAll(filters: ChatFilters, pagination: PaginationParams): Promise<PaginatedResult<Chat>>;
     findOne(id: number): Promise<Chat | null>;
     findByUserId(userId: string): Promise<Chat | null>;
@@ -43,4 +45,6 @@ export declare class ChatsService {
     }>;
     private getGroupedCount;
     delete(id: number): Promise<void>;
+    isInactive(chat: Chat, timeoutMinutes?: number): boolean;
+    reactivate(chatId: number): Promise<void>;
 }

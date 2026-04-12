@@ -18,12 +18,15 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const message_entity_1 = require("./entities/message.entity");
 const chats_service_1 = require("../chats/chats.service");
+const events_service_1 = require("../events/events.service");
 let ConversationService = class ConversationService {
     messageRepository;
     chatsService;
-    constructor(messageRepository, chatsService) {
+    eventsService;
+    constructor(messageRepository, chatsService, eventsService) {
         this.messageRepository = messageRepository;
         this.chatsService = chatsService;
+        this.eventsService = eventsService;
     }
     async getHistory(userId, limit = 50) {
         const messages = await this.messageRepository.find({
@@ -49,6 +52,7 @@ let ConversationService = class ConversationService {
             chatId,
         });
         const savedMessage = await this.messageRepository.save(message);
+        this.eventsService.emit('new_message', savedMessage);
         if (updateChat && chatId) {
             await this.chatsService.updateLastMessage(chatId, content);
             if (role === 'user') {
@@ -74,6 +78,7 @@ exports.ConversationService = ConversationService = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(message_entity_1.Message)),
     __param(1, (0, common_1.Inject)((0, common_1.forwardRef)(() => chats_service_1.ChatsService))),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        chats_service_1.ChatsService])
+        chats_service_1.ChatsService,
+        events_service_1.EventsService])
 ], ConversationService);
 //# sourceMappingURL=conversation.service.js.map

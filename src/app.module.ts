@@ -8,6 +8,7 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
 import { ConversationModule } from './conversation/conversation.module';
 import { ChatsModule } from './chats/chats.module';
 import { GoogleDocsModule } from './google-docs/google-docs.module';
+import { EventsModule } from './events/events.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { GoogleDocsModule } from './google-docs/google-docs.module';
     GeminiModule,
     WhatsAppModule,
     ChatsModule,
+    EventsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -13,12 +13,13 @@ const chats_controller_1 = require("./chats.controller");
 const chats_service_1 = require("./chats.service");
 const chat_entity_1 = require("./entities/chat.entity");
 const message_entity_1 = require("../conversation/entities/message.entity");
+const events_module_1 = require("../events/events.module");
 let ChatsModule = class ChatsModule {
 };
 exports.ChatsModule = ChatsModule;
 exports.ChatsModule = ChatsModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([chat_entity_1.Chat, message_entity_1.Message])],
+        imports: [typeorm_1.TypeOrmModule.forFeature([chat_entity_1.Chat, message_entity_1.Message]), events_module_1.EventsModule],
         controllers: [chats_controller_1.ChatsController],
         providers: [chats_service_1.ChatsService],
         exports: [chats_service_1.ChatsService],

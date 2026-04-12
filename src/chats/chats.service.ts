@@ -4,6 +4,7 @@ import { Repository, SelectQueryBuilder } from 'typeorm';
 import { Chat, ChatStatus, ChatPriority } from './entities/chat.entity';
 import { Message } from '../conversation/entities/message.entity';
 import { UpdateChatDto, CreateChatDto } from './dto/chat.dto';
+import { EventsService } from '../events/events.service';
 
 export interface ChatFilters {
   status?: ChatStatus;
@@ -34,6 +35,7 @@ export class ChatsService {
     private readonly chatRepository: Repository<Chat>,
     @InjectRepository(Message)
     private readonly messageRepository: Repository<Message>,
+    private readonly eventsService: EventsService,
   ) {}
 
   async findAll(
@@ -105,7 +107,11 @@ export class ChatsService {
 
   async update(id: number, updateChatDto: UpdateChatDto): Promise<Chat | null> {
     await this.chatRepository.update(id, updateChatDto);
-    return this.findOne(id);
+    const updated = await this.findOne(id);
+    if (updated) {
+      this.eventsService.emit('chat_updated', updated);
+    }
+    return updated;
   }
 
   async upsertByUserId(userId: string, userName?: string): Promise<Chat> {
@@ -131,6 +137,10 @@ export class ChatsService {
 
   async markAsRead(chatId: number): Promise<void> {
     await this.chatRepository.update(chatId, { unreadCount: 0 });
+    const updated = await this.findOne(chatId);
+    if (updated) {
+      this.eventsService.emit('chat_updated', updated);
+    }
   }
 
   async getChatWithMessages(id: number): Promise<Chat | null> {
@@ -183,5 +193,19 @@ export class ChatsService {
 
   async delete(id: number): Promise<void> {
     await this.chatRepository.delete(id);
+  }
+
+  isInactive(chat: Chat, timeoutMinutes: number = 30): boolean {
+    if (!chat.lastMessageAt) return false;
+    const elapsed = Date.now() - new Date(chat.lastMessageAt).getTime();
+    return elapsed > timeoutMinutes * 60 * 1000;
+  }
+
+  async reactivate(chatId: number): Promise<void> {
+    await this.chatRepository.update(chatId, { status: ChatStatus.ACTIVE });
+    const updated = await this.findOne(chatId);
+    if (updated) {
+      this.eventsService.emit('chat_updated', updated);
+    }
   }
 }

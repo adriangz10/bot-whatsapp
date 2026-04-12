@@ -17,6 +17,7 @@ const whatsapp_module_1 = require("./whatsapp/whatsapp.module");
 const conversation_module_1 = require("./conversation/conversation.module");
 const chats_module_1 = require("./chats/chats.module");
 const google_docs_module_1 = require("./google-docs/google-docs.module");
+const events_module_1 = require("./events/events.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -43,6 +44,7 @@ exports.AppModule = AppModule = __decorate([
             gemini_module_1.GeminiModule,
             whatsapp_module_1.WhatsAppModule,
             chats_module_1.ChatsModule,
+            events_module_1.EventsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

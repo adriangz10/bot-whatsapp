@@ -11,6 +11,7 @@ import { Message } from '../../conversation/entities/message.entity';
 
 export enum ChatStatus {
   ACTIVE = 'active',
+  INACTIVE = 'inactive',
   PENDING = 'pending',
   RESOLVED = 'resolved',
   ARCHIVED = 'archived',

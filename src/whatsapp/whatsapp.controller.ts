@@ -67,10 +67,16 @@ export class WhatsAppController {
         }
       }
 
+      // Verificar inactividad (30 minutos sin mensajes)
+      const isInactive = chat ? this.chatsService.isInactive(chat, 30) : false;
+      if (isInactive) {
+        await this.chatsService.reactivate(chat.id);
+      }
+
       // Obtener respuesta de Gemini con timeout
       const timeoutMs = 30000;
       const response = await Promise.race([
-        this.geminiService.chat(from, text),
+        this.geminiService.chat(from, text, !isInactive),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Gemini timeout')), timeoutMs)
         ),

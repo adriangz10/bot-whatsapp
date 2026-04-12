@@ -30,8 +30,8 @@ let GeminiService = class GeminiService {
         }
         this.genAI = new generative_ai_1.GoogleGenerativeAI(apiKey);
     }
-    async chat(userId, userPrompt) {
-        const history = await this.conversationService.getHistory(userId);
+    async chat(userId, userPrompt, loadHistory = true) {
+        const history = loadHistory ? await this.conversationService.getHistory(userId) : [];
         const context = this.googleDocsService.getContext();
         const model = this.genAI.getGenerativeModel({
             model: 'gemini-3-flash-preview',

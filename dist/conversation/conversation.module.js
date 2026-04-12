@@ -12,6 +12,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const conversation_service_1 = require("./conversation.service");
 const message_entity_1 = require("./entities/message.entity");
 const chats_module_1 = require("../chats/chats.module");
+const events_module_1 = require("../events/events.module");
 let ConversationModule = class ConversationModule {
 };
 exports.ConversationModule = ConversationModule;
@@ -20,6 +21,7 @@ exports.ConversationModule = ConversationModule = __decorate([
         imports: [
             typeorm_1.TypeOrmModule.forFeature([message_entity_1.Message]),
             (0, common_1.forwardRef)(() => chats_module_1.ChatsModule),
+            events_module_1.EventsModule,
         ],
         providers: [conversation_service_1.ConversationService],
         exports: [conversation_service_1.ConversationService],

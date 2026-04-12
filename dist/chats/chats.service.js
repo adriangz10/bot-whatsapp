@@ -18,12 +18,15 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const chat_entity_1 = require("./entities/chat.entity");
 const message_entity_1 = require("../conversation/entities/message.entity");
+const events_service_1 = require("../events/events.service");
 let ChatsService = class ChatsService {
     chatRepository;
     messageRepository;
-    constructor(chatRepository, messageRepository) {
+    eventsService;
+    constructor(chatRepository, messageRepository, eventsService) {
         this.chatRepository = chatRepository;
         this.messageRepository = messageRepository;
+        this.eventsService = eventsService;
     }
     async findAll(filters, pagination) {
         const query = this.chatRepository.createQueryBuilder('chat');
@@ -72,7 +75,11 @@ let ChatsService = class ChatsService {
     }
     async update(id, updateChatDto) {
         await this.chatRepository.update(id, updateChatDto);
-        return this.findOne(id);
+        const updated = await this.findOne(id);
+        if (updated) {
+            this.eventsService.emit('chat_updated', updated);
+        }
+        return updated;
     }
     async upsertByUserId(userId, userName) {
         let chat = await this.findByUserId(userId);
@@ -92,6 +99,10 @@ let ChatsService = class ChatsService {
     }
     async markAsRead(chatId) {
         await this.chatRepository.update(chatId, { unreadCount: 0 });
+        const updated = await this.findOne(chatId);
+        if (updated) {
+            this.eventsService.emit('chat_updated', updated);
+        }
     }
     async getChatWithMessages(id) {
         const chat = await this.findOne(id);
@@ -129,6 +140,19 @@ let ChatsService = class ChatsService {
     async delete(id) {
         await this.chatRepository.delete(id);
     }
+    isInactive(chat, timeoutMinutes = 30) {
+        if (!chat.lastMessageAt)
+            return false;
+        const elapsed = Date.now() - new Date(chat.lastMessageAt).getTime();
+        return elapsed > timeoutMinutes * 60 * 1000;
+    }
+    async reactivate(chatId) {
+        await this.chatRepository.update(chatId, { status: chat_entity_1.ChatStatus.ACTIVE });
+        const updated = await this.findOne(chatId);
+        if (updated) {
+            this.eventsService.emit('chat_updated', updated);
+        }
+    }
 };
 exports.ChatsService = ChatsService;
 exports.ChatsService = ChatsService = __decorate([
@@ -136,6 +160,7 @@ exports.ChatsService = ChatsService = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(chat_entity_1.Chat)),
     __param(1, (0, typeorm_1.InjectRepository)(message_entity_1.Message)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        events_service_1.EventsService])
 ], ChatsService);
 //# sourceMappingURL=chats.service.js.map

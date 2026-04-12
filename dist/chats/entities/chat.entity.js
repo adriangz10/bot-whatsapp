@@ -15,6 +15,7 @@ const message_entity_1 = require("../../conversation/entities/message.entity");
 var ChatStatus;
 (function (ChatStatus) {
     ChatStatus["ACTIVE"] = "active";
+    ChatStatus["INACTIVE"] = "inactive";
     ChatStatus["PENDING"] = "pending";
     ChatStatus["RESOLVED"] = "resolved";
     ChatStatus["ARCHIVED"] = "archived";
@@ -29,6 +30,7 @@ let Chat = class Chat {
     id;
     userId;
     userName;
+    profilePictureUrl;
     lastMessage;
     lastMessageAt;
     status;
@@ -54,6 +56,10 @@ __decorate([
     (0, typeorm_1.Column)({ length: 255, nullable: true }),
     __metadata("design:type", String)
 ], Chat.prototype, "userName", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", String)
+], Chat.prototype, "profilePictureUrl", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'text', nullable: true }),
     __metadata("design:type", String)

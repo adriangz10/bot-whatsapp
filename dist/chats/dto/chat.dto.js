@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateChatDto = exports.UpdateChatDto = void 0;
 class UpdateChatDto {
     userName;
+    profilePictureUrl;
     status;
     priority;
     tags;

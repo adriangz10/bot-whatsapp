@@ -6,21 +6,17 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.WhatsAppModule = void 0;
+exports.EventsModule = void 0;
 const common_1 = require("@nestjs/common");
-const whatsapp_service_1 = require("./whatsapp.service");
-const whatsapp_controller_1 = require("./whatsapp.controller");
-const gemini_module_1 = require("../gemini/gemini.module");
-const chats_module_1 = require("../chats/chats.module");
-let WhatsAppModule = class WhatsAppModule {
+const events_gateway_1 = require("./events.gateway");
+const events_service_1 = require("./events.service");
+let EventsModule = class EventsModule {
 };
-exports.WhatsAppModule = WhatsAppModule;
-exports.WhatsAppModule = WhatsAppModule = __decorate([
+exports.EventsModule = EventsModule;
+exports.EventsModule = EventsModule = __decorate([
     (0, common_1.Module)({
-        imports: [gemini_module_1.GeminiModule, chats_module_1.ChatsModule],
-        controllers: [whatsapp_controller_1.WhatsAppController],
-        providers: [whatsapp_service_1.WhatsAppService],
-        exports: [whatsapp_service_1.WhatsAppService],
+        providers: [events_gateway_1.EventsGateway, events_service_1.EventsService],
+        exports: [events_service_1.EventsService],
     })
-], WhatsAppModule);
-//# sourceMappingURL=whatsapp.module.js.map
+], EventsModule);
+//# sourceMappingURL=events.module.js.map

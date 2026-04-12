@@ -1,0 +1,132 @@
+-- ========================================
+-- 1. CONTACTS
+-- ========================================
+CREATE TABLE contacts (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    phone_number VARCHAR(20) NOT NULL UNIQUE,
+    name VARCHAR(150),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NULL
+);
+
+-- ========================================
+-- 2. CONVERSATIONS
+-- ========================================
+CREATE TABLE conversations (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    type ENUM('individual', 'group') NOT NULL,
+    name VARCHAR(150),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ========================================
+-- 3. CONVERSATION PARTICIPANTS
+-- ========================================
+CREATE TABLE conversation_participants (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    conversation_id BIGINT NOT NULL,
+    contact_id BIGINT NOT NULL,
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    left_at DATETIME NULL,
+
+    UNIQUE (conversation_id, contact_id),
+
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+);
+
+-- ========================================
+-- 4. MESSAGES
+-- ========================================
+CREATE TABLE messages (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    conversation_id BIGINT NOT NULL,
+    sender_id BIGINT NOT NULL,
+    message_text TEXT,
+    message_type ENUM('text', 'voice') NOT NULL,
+    sent_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES contacts(id)
+);
+
+-- ========================================
+-- 5. VOICE MESSAGES
+-- ========================================
+CREATE TABLE voice_messages (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    message_id BIGINT NOT NULL UNIQUE,
+    file_url VARCHAR(500) NOT NULL,
+    duration_seconds INT NOT NULL,
+    file_size BIGINT,
+    mime_type VARCHAR(50),
+
+    transcription TEXT,
+    transcription_status ENUM('pending','processing','completed','failed') DEFAULT 'pending',
+    transcription_updated_at DATETIME,
+
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+);
+
+-- ========================================
+-- 6. TRANSCRIPTION JOBS
+-- ========================================
+CREATE TABLE transcription_jobs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    voice_message_id BIGINT NOT NULL,
+    status ENUM('pending','processing','completed','failed') DEFAULT 'pending',
+    attempts INT DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+
+    FOREIGN KEY (voice_message_id) REFERENCES voice_messages(id) ON DELETE CASCADE
+);
+
+ALTER TABLE messages ADD FULLTEXT(message_text);
+
+BUSCAR:
+SELECT *
+FROM messages
+WHERE MATCH(message_text) AGAINST('hola' IN NATURAL LANGUAGE MODE);
+
+TRIGGER:
+DELIMITER $$
+
+CREATE TRIGGER trg_after_voice_insert
+AFTER INSERT ON voice_messages
+FOR EACH ROW
+BEGIN
+    INSERT INTO transcription_jobs (voice_message_id)
+    VALUES (NEW.id);
+END$$
+
+DELIMITER ;
+
+METRICAS:
+-- mensajes por usuario
+CREATE VIEW vw_messages_per_user AS
+SELECT 
+    c.id,
+    c.name,
+    COUNT(m.id) AS total_messages
+FROM contacts c
+LEFT JOIN messages m ON m.sender_id = c.id
+GROUP BY c.id, c.name;
+
+-- mensajes por día
+CREATE VIEW vw_messages_per_day AS
+SELECT 
+    DATE(sent_at) as day,
+    COUNT(*) as total_messages
+FROM messages
+GROUP BY DATE(sent_at);
+
+-- uso de audios
+CREATE VIEW vw_voice_usage AS
+SELECT 
+    COUNT(*) as total_audios,
+    AVG(duration_seconds) as avg_duration
+FROM voice_messages;

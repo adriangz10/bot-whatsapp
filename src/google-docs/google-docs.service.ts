@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { docs_v1 } from 'googleapis/build/src/apis/docs';
+import { RagService } from '../rag/rag.service';
 
 @Injectable()
 export class GoogleDocsService implements OnModuleInit {
@@ -9,7 +10,10 @@ export class GoogleDocsService implements OnModuleInit {
   private readonly documentId: string;
   private docsClient: docs_v1.Docs | null = null;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly ragService: RagService,
+  ) {
     this.documentId = this.configService.get<string>('GOOGLE_DOCS_DOCUMENT_ID') || '';
   }
 
@@ -75,6 +79,9 @@ export class GoogleDocsService implements OnModuleInit {
       const response = await this.docsClient.documents.get({ documentId: this.documentId });
       this.documentContent = this.extractText(response.data);
       this.logger.log(`Document loaded: ${this.documentContent.length} characters`);
+
+      // Indexar el documento en el sistema RAG
+      await this.ragService.indexDocument(this.documentContent);
     } catch (error) {
       this.logger.error('Failed to load Google Doc:', error);
       throw error;

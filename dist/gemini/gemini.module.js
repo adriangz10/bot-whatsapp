@@ -11,13 +11,13 @@ const common_1 = require("@nestjs/common");
 const gemini_service_1 = require("./gemini.service");
 const gemini_controller_1 = require("./gemini.controller");
 const conversation_module_1 = require("../conversation/conversation.module");
-const google_docs_module_1 = require("../google-docs/google-docs.module");
+const rag_module_1 = require("../rag/rag.module");
 let GeminiModule = class GeminiModule {
 };
 exports.GeminiModule = GeminiModule;
 exports.GeminiModule = GeminiModule = __decorate([
     (0, common_1.Module)({
-        imports: [conversation_module_1.ConversationModule, google_docs_module_1.GoogleDocsModule],
+        imports: [conversation_module_1.ConversationModule, rag_module_1.RagModule],
         controllers: [gemini_controller_1.GeminiController],
         providers: [gemini_service_1.GeminiService],
         exports: [gemini_service_1.GeminiService],

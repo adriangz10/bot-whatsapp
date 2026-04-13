@@ -6,20 +6,16 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.GoogleDocsModule = void 0;
+exports.RagModule = void 0;
 const common_1 = require("@nestjs/common");
-const google_docs_service_1 = require("./google-docs.service");
-const google_docs_controller_1 = require("./google-docs.controller");
-const rag_module_1 = require("../rag/rag.module");
-let GoogleDocsModule = class GoogleDocsModule {
+const rag_service_1 = require("./rag.service");
+let RagModule = class RagModule {
 };
-exports.GoogleDocsModule = GoogleDocsModule;
-exports.GoogleDocsModule = GoogleDocsModule = __decorate([
+exports.RagModule = RagModule;
+exports.RagModule = RagModule = __decorate([
     (0, common_1.Module)({
-        imports: [rag_module_1.RagModule],
-        providers: [google_docs_service_1.GoogleDocsService],
-        controllers: [google_docs_controller_1.GoogleDocsController],
-        exports: [google_docs_service_1.GoogleDocsService],
+        providers: [rag_service_1.RagService],
+        exports: [rag_service_1.RagService],
     })
-], GoogleDocsModule);
-//# sourceMappingURL=google-docs.module.js.map
+], RagModule);
+//# sourceMappingURL=rag.module.js.map

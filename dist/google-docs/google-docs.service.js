@@ -13,14 +13,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.GoogleDocsService = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
+const rag_service_1 = require("../rag/rag.service");
 let GoogleDocsService = GoogleDocsService_1 = class GoogleDocsService {
     configService;
+    ragService;
     logger = new common_1.Logger(GoogleDocsService_1.name);
     documentContent = '';
     documentId;
     docsClient = null;
-    constructor(configService) {
+    constructor(configService, ragService) {
         this.configService = configService;
+        this.ragService = ragService;
         this.documentId = this.configService.get('GOOGLE_DOCS_DOCUMENT_ID') || '';
     }
     async onModuleInit() {
@@ -78,6 +81,7 @@ let GoogleDocsService = GoogleDocsService_1 = class GoogleDocsService {
             const response = await this.docsClient.documents.get({ documentId: this.documentId });
             this.documentContent = this.extractText(response.data);
             this.logger.log(`Document loaded: ${this.documentContent.length} characters`);
+            await this.ragService.indexDocument(this.documentContent);
         }
         catch (error) {
             this.logger.error('Failed to load Google Doc:', error);
@@ -109,6 +113,7 @@ let GoogleDocsService = GoogleDocsService_1 = class GoogleDocsService {
 exports.GoogleDocsService = GoogleDocsService;
 exports.GoogleDocsService = GoogleDocsService = GoogleDocsService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [config_1.ConfigService])
+    __metadata("design:paramtypes", [config_1.ConfigService,
+        rag_service_1.RagService])
 ], GoogleDocsService);
 //# sourceMappingURL=google-docs.service.js.map

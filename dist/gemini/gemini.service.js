@@ -14,16 +14,16 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const generative_ai_1 = require("@google/generative-ai");
 const conversation_service_1 = require("../conversation/conversation.service");
-const google_docs_service_1 = require("../google-docs/google-docs.service");
+const rag_service_1 = require("../rag/rag.service");
 let GeminiService = class GeminiService {
     configService;
     conversationService;
-    googleDocsService;
+    ragService;
     genAI;
-    constructor(configService, conversationService, googleDocsService) {
+    constructor(configService, conversationService, ragService) {
         this.configService = configService;
         this.conversationService = conversationService;
-        this.googleDocsService = googleDocsService;
+        this.ragService = ragService;
         const apiKey = this.configService.get('GEMINI_API_KEY');
         if (!apiKey) {
             throw new Error('GEMINI_API_KEY no está configurada');
@@ -32,10 +32,27 @@ let GeminiService = class GeminiService {
     }
     async chat(userId, userPrompt, loadHistory = true) {
         const history = loadHistory ? await this.conversationService.getHistory(userId) : [];
-        const context = this.googleDocsService.getContext();
+        const relevantChunks = await this.ragService.search(userPrompt, 4);
+        let systemInstruction;
+        if (relevantChunks.length > 0) {
+            systemInstruction = `Eres el asistente virtual de Syntax Servicio Tecnico. Tu trabajo es responder preguntas de los clientes ÚNICAMENTE usando la información proporcionada en el contexto.
+
+Reglas estrictas:
+1. SOLO responde con información que esté en el contexto.
+2. Si la pregunta no se puede responder con el contexto, di: "Lo siento, no tengo esa información. Te recomiendo contactarnos por WhatsApp al +54345232123 o por mail a contacto@syntaxsolutions.com.ar"
+3. Sé amable, conciso y útil.
+4. Si preguntan precios, siempre menciona el precio exacto.
+5. Responde en español.
+
+Contexto:
+${relevantChunks.join('\n---\n')}`;
+        }
         const model = this.genAI.getGenerativeModel({
             model: 'gemini-3-flash-preview',
-            systemInstruction: context || undefined,
+            systemInstruction,
+            generationConfig: {
+                temperature: 0.3,
+            },
         });
         const chat = model.startChat({
             history,
@@ -58,6 +75,6 @@ exports.GeminiService = GeminiService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [config_1.ConfigService,
         conversation_service_1.ConversationService,
-        google_docs_service_1.GoogleDocsService])
+        rag_service_1.RagService])
 ], GeminiService);
 //# sourceMappingURL=gemini.service.js.map

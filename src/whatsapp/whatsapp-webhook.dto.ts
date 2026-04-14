@@ -20,6 +20,10 @@ export class WhatsAppWebhookDto {
           text?: {
             body: string;
           };
+          audio?: {
+            id: string;
+            mime_type: string;
+          };
           timestamp: string;
           type: string;
         }[];

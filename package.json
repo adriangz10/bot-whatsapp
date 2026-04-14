@@ -33,6 +33,7 @@
     "@nestjs/websockets": "^11.1.18",
     "googleapis": "^171.4.0",
     "mysql2": "^3.20.0",
+    "openai": "^6.34.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "typeorm": "^0.3.28",

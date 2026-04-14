@@ -165,6 +165,43 @@ export class WhatsAppService {
     return data;
   }
 
+  async downloadMedia(mediaId: string): Promise<Buffer> {
+    if (!this.accessToken) {
+      throw new Error('WhatsApp credentials not configured');
+    }
+
+    // Obtener URL del archivo
+    const url = `https://graph.facebook.com/${this.apiVersion}/${mediaId}`;
+    const urlResponse = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.accessToken}`,
+      },
+    });
+
+    const urlData = await urlResponse.json();
+    const downloadUrl = urlData?.url;
+
+    if (!downloadUrl) {
+      throw new Error(`No se pudo obtener la URL del medio: ${JSON.stringify(urlData)}`);
+    }
+
+    // Descargar el archivo
+    const fileResponse = await fetch(downloadUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.accessToken}`,
+      },
+    });
+
+    if (!fileResponse.ok) {
+      throw new Error(`Error descargando medio: ${fileResponse.status}`);
+    }
+
+    const arrayBuffer = await fileResponse.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+
   private detectMediaType(url: string): 'image' | 'video' | 'document' {
     const extension = url.split('?')[0].split('#')[0].toLowerCase().split('.').pop() || '';
     const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];

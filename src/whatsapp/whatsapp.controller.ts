@@ -4,6 +4,7 @@ import { WhatsAppService } from './whatsapp.service';
 import { SendMessageDto } from './whatsapp.dto';
 import { WhatsAppWebhookDto } from './whatsapp-webhook.dto';
 import { GeminiService } from '../gemini/gemini.service';
+import { OpenAIService } from '../openai/openai.service';
 import { ChatsService } from '../chats/chats.service';
 import { GoogleSheetsService } from '../google-sheets/google-sheets.service';
 import { ConversationService } from '../conversation/conversation.service';
@@ -13,6 +14,7 @@ export class WhatsAppController {
   constructor(
     private readonly whatsappService: WhatsAppService,
     private readonly geminiService: GeminiService,
+    private readonly openaiService: OpenAIService,
     private readonly configService: ConfigService,
     private readonly chatsService: ChatsService,
     private readonly googleSheetsService: GoogleSheetsService,
@@ -52,7 +54,22 @@ export class WhatsAppController {
       }
 
       const from = message.from;
-      const text = message.text?.body;
+      const messageType = message.type;
+      let text: string | undefined;
+
+      // Procesar mensaje de audio: descargar, transcribir y usar como texto
+      if (messageType === 'audio' && message.audio) {
+        try {
+          const audioBuffer = await this.whatsappService.downloadMedia(message.audio.id);
+          text = await this.openaiService.transcribe(audioBuffer);
+        } catch (err) {
+          console.error('Error transcribing audio:', err instanceof Error ? err.message : err);
+          await this.whatsappService.sendMessage(from, 'No pude procesar el audio. Por favor, envíalo de nuevo o escríbeme tu consulta.');
+          return 'Error';
+        }
+      } else {
+        text = message.text?.body;
+      }
 
       if (!text) {
         return 'No text in message';

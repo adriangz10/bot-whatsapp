@@ -4,6 +4,7 @@ import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GeminiModule } from './gemini/gemini.module';
+import { OpenAIModule } from './openai/openai.module';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
 import { ConversationModule } from './conversation/conversation.module';
 import { ChatsModule } from './chats/chats.module';
@@ -33,6 +34,7 @@ import { EventsModule } from './events/events.module';
     GoogleSheetsModule,
     ConversationModule,
     GeminiModule,
+    OpenAIModule,
     WhatsAppModule,
     ChatsModule,
     EventsModule,

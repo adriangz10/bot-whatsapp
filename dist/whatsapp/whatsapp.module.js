@@ -11,6 +11,7 @@ const common_1 = require("@nestjs/common");
 const whatsapp_service_1 = require("./whatsapp.service");
 const whatsapp_controller_1 = require("./whatsapp.controller");
 const gemini_module_1 = require("../gemini/gemini.module");
+const openai_module_1 = require("../openai/openai.module");
 const chats_module_1 = require("../chats/chats.module");
 const google_sheets_module_1 = require("../google-sheets/google-sheets.module");
 const conversation_module_1 = require("../conversation/conversation.module");
@@ -19,7 +20,7 @@ let WhatsAppModule = class WhatsAppModule {
 exports.WhatsAppModule = WhatsAppModule;
 exports.WhatsAppModule = WhatsAppModule = __decorate([
     (0, common_1.Module)({
-        imports: [gemini_module_1.GeminiModule, chats_module_1.ChatsModule, google_sheets_module_1.GoogleSheetsModule, conversation_module_1.ConversationModule],
+        imports: [gemini_module_1.GeminiModule, openai_module_1.OpenAIModule, chats_module_1.ChatsModule, google_sheets_module_1.GoogleSheetsModule, conversation_module_1.ConversationModule],
         controllers: [whatsapp_controller_1.WhatsAppController],
         providers: [whatsapp_service_1.WhatsAppService],
         exports: [whatsapp_service_1.WhatsAppService],

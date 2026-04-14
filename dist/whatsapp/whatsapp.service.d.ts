@@ -10,5 +10,6 @@ export declare class WhatsAppService {
     getProfilePicture(phoneNumber: string): Promise<string | null>;
     sendMessage(to: string, message: string): Promise<any>;
     sendMediaMessage(to: string, mediaUrl: string, caption?: string): Promise<any>;
+    downloadMedia(mediaId: string): Promise<Buffer>;
     private detectMediaType;
 }

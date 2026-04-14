@@ -13,6 +13,7 @@ const app_service_1 = require("./app.service");
 const typeorm_1 = require("@nestjs/typeorm");
 const config_1 = require("@nestjs/config");
 const gemini_module_1 = require("./gemini/gemini.module");
+const openai_module_1 = require("./openai/openai.module");
 const whatsapp_module_1 = require("./whatsapp/whatsapp.module");
 const conversation_module_1 = require("./conversation/conversation.module");
 const chats_module_1 = require("./chats/chats.module");
@@ -44,6 +45,7 @@ exports.AppModule = AppModule = __decorate([
             google_sheets_module_1.GoogleSheetsModule,
             conversation_module_1.ConversationModule,
             gemini_module_1.GeminiModule,
+            openai_module_1.OpenAIModule,
             whatsapp_module_1.WhatsAppModule,
             chats_module_1.ChatsModule,
             events_module_1.EventsModule,

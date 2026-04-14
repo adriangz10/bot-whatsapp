@@ -19,19 +19,22 @@ const whatsapp_service_1 = require("./whatsapp.service");
 const whatsapp_dto_1 = require("./whatsapp.dto");
 const whatsapp_webhook_dto_1 = require("./whatsapp-webhook.dto");
 const gemini_service_1 = require("../gemini/gemini.service");
+const openai_service_1 = require("../openai/openai.service");
 const chats_service_1 = require("../chats/chats.service");
 const google_sheets_service_1 = require("../google-sheets/google-sheets.service");
 const conversation_service_1 = require("../conversation/conversation.service");
 let WhatsAppController = class WhatsAppController {
     whatsappService;
     geminiService;
+    openaiService;
     configService;
     chatsService;
     googleSheetsService;
     conversationService;
-    constructor(whatsappService, geminiService, configService, chatsService, googleSheetsService, conversationService) {
+    constructor(whatsappService, geminiService, openaiService, configService, chatsService, googleSheetsService, conversationService) {
         this.whatsappService = whatsappService;
         this.geminiService = geminiService;
+        this.openaiService = openaiService;
         this.configService = configService;
         this.chatsService = chatsService;
         this.googleSheetsService = googleSheetsService;
@@ -56,7 +59,22 @@ let WhatsAppController = class WhatsAppController {
                 return 'No message';
             }
             const from = message.from;
-            const text = message.text?.body;
+            const messageType = message.type;
+            let text;
+            if (messageType === 'audio' && message.audio) {
+                try {
+                    const audioBuffer = await this.whatsappService.downloadMedia(message.audio.id);
+                    text = await this.openaiService.transcribe(audioBuffer);
+                }
+                catch (err) {
+                    console.error('Error transcribing audio:', err instanceof Error ? err.message : err);
+                    await this.whatsappService.sendMessage(from, 'No pude procesar el audio. Por favor, envíalo de nuevo o escríbeme tu consulta.');
+                    return 'Error';
+                }
+            }
+            else {
+                text = message.text?.body;
+            }
             if (!text) {
                 return 'No text in message';
             }
@@ -128,6 +146,7 @@ exports.WhatsAppController = WhatsAppController = __decorate([
     (0, common_1.Controller)('whatsapp'),
     __metadata("design:paramtypes", [whatsapp_service_1.WhatsAppService,
         gemini_service_1.GeminiService,
+        openai_service_1.OpenAIService,
         config_1.ConfigService,
         chats_service_1.ChatsService,
         google_sheets_service_1.GoogleSheetsService,

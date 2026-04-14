@@ -4,12 +4,16 @@ import { SendMessageDto } from './whatsapp.dto';
 import { WhatsAppWebhookDto } from './whatsapp-webhook.dto';
 import { GeminiService } from '../gemini/gemini.service';
 import { ChatsService } from '../chats/chats.service';
+import { GoogleSheetsService } from '../google-sheets/google-sheets.service';
+import { ConversationService } from '../conversation/conversation.service';
 export declare class WhatsAppController {
     private readonly whatsappService;
     private readonly geminiService;
     private readonly configService;
     private readonly chatsService;
-    constructor(whatsappService: WhatsAppService, geminiService: GeminiService, configService: ConfigService, chatsService: ChatsService);
+    private readonly googleSheetsService;
+    private readonly conversationService;
+    constructor(whatsappService: WhatsAppService, geminiService: GeminiService, configService: ConfigService, chatsService: ChatsService, googleSheetsService: GoogleSheetsService, conversationService: ConversationService);
     sendMessage(body: SendMessageDto): Promise<any>;
     verifyWebhook(mode: string, challenge: string, token: string): string | number;
     handleWebhook(body: WhatsAppWebhookDto): Promise<string>;

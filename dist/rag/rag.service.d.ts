@@ -9,7 +9,7 @@ export declare class RagService {
     private embedTexts;
     private embedQuery;
     private cosineSimilarity;
-    indexDocument(text: string): Promise<void>;
+    indexDocument(text: string, source?: string): Promise<void>;
     search(query: string, topK?: number): Promise<string[]>;
     getVectorCount(): number;
 }

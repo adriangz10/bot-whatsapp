@@ -20,16 +20,22 @@ const whatsapp_dto_1 = require("./whatsapp.dto");
 const whatsapp_webhook_dto_1 = require("./whatsapp-webhook.dto");
 const gemini_service_1 = require("../gemini/gemini.service");
 const chats_service_1 = require("../chats/chats.service");
+const google_sheets_service_1 = require("../google-sheets/google-sheets.service");
+const conversation_service_1 = require("../conversation/conversation.service");
 let WhatsAppController = class WhatsAppController {
     whatsappService;
     geminiService;
     configService;
     chatsService;
-    constructor(whatsappService, geminiService, configService, chatsService) {
+    googleSheetsService;
+    conversationService;
+    constructor(whatsappService, geminiService, configService, chatsService, googleSheetsService, conversationService) {
         this.whatsappService = whatsappService;
         this.geminiService = geminiService;
         this.configService = configService;
         this.chatsService = chatsService;
+        this.googleSheetsService = googleSheetsService;
+        this.conversationService = conversationService;
     }
     async sendMessage(body) {
         return await this.whatsappService.sendMessage(body.to, body.message);
@@ -67,11 +73,22 @@ let WhatsAppController = class WhatsAppController {
             if (isInactive) {
                 await this.chatsService.reactivate(chat.id);
             }
-            const timeoutMs = 30000;
-            const response = await Promise.race([
-                this.geminiService.chat(from, text, !isInactive),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini timeout')), timeoutMs)),
-            ]);
+            const keywordMatch = this.googleSheetsService.findKeyword(text);
+            let response;
+            if (keywordMatch) {
+                response = keywordMatch.media
+                    ? `${keywordMatch.answer}\n${keywordMatch.media}`
+                    : keywordMatch.answer;
+                await this.conversationService.saveMessage(from, 'user', text);
+                await this.conversationService.saveMessage(from, 'model', response);
+            }
+            else {
+                const timeoutMs = 30000;
+                response = await Promise.race([
+                    this.geminiService.chat(from, text, !isInactive),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini timeout')), timeoutMs)),
+                ]);
+            }
             await this.whatsappService.sendMessage(from, response);
             return 'OK';
         }
@@ -110,6 +127,8 @@ exports.WhatsAppController = WhatsAppController = __decorate([
     __metadata("design:paramtypes", [whatsapp_service_1.WhatsAppService,
         gemini_service_1.GeminiService,
         config_1.ConfigService,
-        chats_service_1.ChatsService])
+        chats_service_1.ChatsService,
+        google_sheets_service_1.GoogleSheetsService,
+        conversation_service_1.ConversationService])
 ], WhatsAppController);
 //# sourceMappingURL=whatsapp.controller.js.map

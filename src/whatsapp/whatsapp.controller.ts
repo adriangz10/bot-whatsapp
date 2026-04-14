@@ -5,6 +5,8 @@ import { SendMessageDto } from './whatsapp.dto';
 import { WhatsAppWebhookDto } from './whatsapp-webhook.dto';
 import { GeminiService } from '../gemini/gemini.service';
 import { ChatsService } from '../chats/chats.service';
+import { GoogleSheetsService } from '../google-sheets/google-sheets.service';
+import { ConversationService } from '../conversation/conversation.service';
 
 @Controller('whatsapp')
 export class WhatsAppController {
@@ -13,6 +15,8 @@ export class WhatsAppController {
     private readonly geminiService: GeminiService,
     private readonly configService: ConfigService,
     private readonly chatsService: ChatsService,
+    private readonly googleSheetsService: GoogleSheetsService,
+    private readonly conversationService: ConversationService,
   ) {}
 
   @Post('send')
@@ -73,14 +77,29 @@ export class WhatsAppController {
         await this.chatsService.reactivate(chat.id);
       }
 
-      // Obtener respuesta de Gemini con timeout
-      const timeoutMs = 30000;
-      const response = await Promise.race([
-        this.geminiService.chat(from, text, !isInactive),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Gemini timeout')), timeoutMs)
-        ),
-      ]);
+      // Verificar keyword match en Google Sheets
+      const keywordMatch = this.googleSheetsService.findKeyword(text);
+
+      let response: string;
+      if (keywordMatch) {
+        // Responder con Answer + Media del Sheet
+        response = keywordMatch.media
+          ? `${keywordMatch.answer}\n${keywordMatch.media}`
+          : keywordMatch.answer;
+
+        // Guardar mensajes en historial
+        await this.conversationService.saveMessage(from, 'user', text);
+        await this.conversationService.saveMessage(from, 'model', response);
+      } else {
+        // Flujo normal: Gemini + RAG
+        const timeoutMs = 30000;
+        response = await Promise.race([
+          this.geminiService.chat(from, text, !isInactive),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Gemini timeout')), timeoutMs)
+          ),
+        ]);
+      }
 
       // Enviar respuesta por WhatsApp
       await this.whatsappService.sendMessage(from, response);

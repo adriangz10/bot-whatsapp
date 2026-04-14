@@ -75,21 +75,23 @@ let RagService = RagService_1 = class RagService {
             return 0;
         return dotProduct / denominator;
     }
-    async indexDocument(text) {
+    async indexDocument(text, source = 'default') {
         if (!text || text.trim().length === 0) {
             this.logger.warn('No hay texto para indexar');
             return;
         }
         const chunks = this.chunkText(text, 500, 50);
-        this.logger.log(`Documento dividido en ${chunks.length} chunks`);
-        this.logger.log('Generando embeddings...');
+        this.logger.log(`[${source}] Documento dividido en ${chunks.length} chunks`);
+        this.logger.log(`[${source}] Generando embeddings...`);
         const embeddings = await this.embedTexts(chunks);
-        this.vectors = chunks.map((chunk, index) => ({
+        const newVectors = chunks.map((chunk, index) => ({
             chunk,
-            index,
+            index: this.vectors.length + index,
             embedding: embeddings[index],
+            source,
         }));
-        this.logger.log(`Indexación completa: ${this.vectors.length} vectores almacenados`);
+        this.vectors.push(...newVectors);
+        this.logger.log(`[${source}] Indexación completa: ${newVectors.length} vectores agregados (total: ${this.vectors.length})`);
     }
     async search(query, topK = 4) {
         if (this.vectors.length === 0) {

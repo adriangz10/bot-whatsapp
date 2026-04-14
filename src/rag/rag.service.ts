@@ -6,6 +6,7 @@ interface VectorEntry {
   chunk: string;
   index: number;
   embedding: number[];
+  source: string;
 }
 
 @Injectable()
@@ -101,26 +102,30 @@ export class RagService {
 
   /**
    * Indexa un documento: lo divide en chunks, genera embeddings y los almacena en memoria.
+   * Soporta múltiples fuentes: cada llamada agrega vectores sin sobrescribir los existentes.
    */
-  async indexDocument(text: string): Promise<void> {
+  async indexDocument(text: string, source: string = 'default'): Promise<void> {
     if (!text || text.trim().length === 0) {
       this.logger.warn('No hay texto para indexar');
       return;
     }
 
     const chunks = this.chunkText(text, 500, 50);
-    this.logger.log(`Documento dividido en ${chunks.length} chunks`);
+    this.logger.log(`[${source}] Documento dividido en ${chunks.length} chunks`);
 
-    this.logger.log('Generando embeddings...');
+    this.logger.log(`[${source}] Generando embeddings...`);
     const embeddings = await this.embedTexts(chunks);
 
-    this.vectors = chunks.map((chunk, index) => ({
+    const newVectors = chunks.map((chunk, index) => ({
       chunk,
-      index,
+      index: this.vectors.length + index,
       embedding: embeddings[index],
+      source,
     }));
 
-    this.logger.log(`Indexación completa: ${this.vectors.length} vectores almacenados`);
+    this.vectors.push(...newVectors);
+
+    this.logger.log(`[${source}] Indexación completa: ${newVectors.length} vectores agregados (total: ${this.vectors.length})`);
   }
 
   /**

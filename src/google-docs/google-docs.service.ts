@@ -81,10 +81,9 @@ export class GoogleDocsService implements OnModuleInit {
       this.logger.log(`Document loaded: ${this.documentContent.length} characters`);
 
       // Indexar el documento en el sistema RAG
-      await this.ragService.indexDocument(this.documentContent);
+      await this.ragService.indexDocument(this.documentContent, 'google-docs');
     } catch (error) {
-      this.logger.error('Failed to load Google Doc:', error);
-      throw error;
+      this.logger.error('Failed to load Google Doc:', error?.message || error);
     }
   }
 

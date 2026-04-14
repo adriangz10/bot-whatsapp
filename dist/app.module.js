@@ -17,6 +17,7 @@ const whatsapp_module_1 = require("./whatsapp/whatsapp.module");
 const conversation_module_1 = require("./conversation/conversation.module");
 const chats_module_1 = require("./chats/chats.module");
 const google_docs_module_1 = require("./google-docs/google-docs.module");
+const google_sheets_module_1 = require("./google-sheets/google-sheets.module");
 const events_module_1 = require("./events/events.module");
 let AppModule = class AppModule {
 };
@@ -40,6 +41,7 @@ exports.AppModule = AppModule = __decorate([
                 }),
             }),
             google_docs_module_1.GoogleDocsModule,
+            google_sheets_module_1.GoogleSheetsModule,
             conversation_module_1.ConversationModule,
             gemini_module_1.GeminiModule,
             whatsapp_module_1.WhatsAppModule,

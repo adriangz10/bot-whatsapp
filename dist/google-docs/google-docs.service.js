@@ -81,11 +81,10 @@ let GoogleDocsService = GoogleDocsService_1 = class GoogleDocsService {
             const response = await this.docsClient.documents.get({ documentId: this.documentId });
             this.documentContent = this.extractText(response.data);
             this.logger.log(`Document loaded: ${this.documentContent.length} characters`);
-            await this.ragService.indexDocument(this.documentContent);
+            await this.ragService.indexDocument(this.documentContent, 'google-docs');
         }
         catch (error) {
-            this.logger.error('Failed to load Google Doc:', error);
-            throw error;
+            this.logger.error('Failed to load Google Doc:', error?.message || error);
         }
     }
     extractText(document) {

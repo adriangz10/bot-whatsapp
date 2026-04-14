@@ -74,21 +74,23 @@ let WhatsAppController = class WhatsAppController {
                 await this.chatsService.reactivate(chat.id);
             }
             const keywordMatch = this.googleSheetsService.findKeyword(text);
-            let response;
             if (keywordMatch) {
-                response = keywordMatch.media
-                    ? `${keywordMatch.answer}\n${keywordMatch.media}`
-                    : keywordMatch.answer;
                 await this.conversationService.saveMessage(from, 'user', text);
-                await this.conversationService.saveMessage(from, 'model', response);
+                if (keywordMatch.media) {
+                    await this.whatsappService.sendImageMessage(from, keywordMatch.media, keywordMatch.answer);
+                    await this.conversationService.saveMessage(from, 'model', `${keywordMatch.answer}\n[Imagen: ${keywordMatch.media}]`);
+                }
+                else {
+                    await this.whatsappService.sendMessage(from, keywordMatch.answer);
+                    await this.conversationService.saveMessage(from, 'model', keywordMatch.answer);
+                }
+                return 'OK';
             }
-            else {
-                const timeoutMs = 30000;
-                response = await Promise.race([
-                    this.geminiService.chat(from, text, !isInactive),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini timeout')), timeoutMs)),
-                ]);
-            }
+            const timeoutMs = 30000;
+            const response = await Promise.race([
+                this.geminiService.chat(from, text, !isInactive),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini timeout')), timeoutMs)),
+            ]);
             await this.whatsappService.sendMessage(from, response);
             return 'OK';
         }

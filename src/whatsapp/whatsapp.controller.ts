@@ -80,26 +80,31 @@ export class WhatsAppController {
       // Verificar keyword match en Google Sheets
       const keywordMatch = this.googleSheetsService.findKeyword(text);
 
-      let response: string;
       if (keywordMatch) {
-        // Responder con Answer + Media del Sheet
-        response = keywordMatch.media
-          ? `${keywordMatch.answer}\n${keywordMatch.media}`
-          : keywordMatch.answer;
-
-        // Guardar mensajes en historial
+        // Guardar mensaje del usuario en historial
         await this.conversationService.saveMessage(from, 'user', text);
-        await this.conversationService.saveMessage(from, 'model', response);
-      } else {
-        // Flujo normal: Gemini + RAG
-        const timeoutMs = 30000;
-        response = await Promise.race([
-          this.geminiService.chat(from, text, !isInactive),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Gemini timeout')), timeoutMs)
-          ),
-        ]);
+
+        if (keywordMatch.media) {
+          // Enviar imagen con Answer como caption
+          await this.whatsappService.sendImageMessage(from, keywordMatch.media, keywordMatch.answer);
+          await this.conversationService.saveMessage(from, 'model', `${keywordMatch.answer}\n[Imagen: ${keywordMatch.media}]`);
+        } else {
+          // Solo texto
+          await this.whatsappService.sendMessage(from, keywordMatch.answer);
+          await this.conversationService.saveMessage(from, 'model', keywordMatch.answer);
+        }
+
+        return 'OK';
       }
+
+      // Flujo normal: Gemini + RAG
+      const timeoutMs = 30000;
+      const response = await Promise.race([
+        this.geminiService.chat(from, text, !isInactive),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Gemini timeout')), timeoutMs)
+        ),
+      ]);
 
       // Enviar respuesta por WhatsApp
       await this.whatsappService.sendMessage(from, response);

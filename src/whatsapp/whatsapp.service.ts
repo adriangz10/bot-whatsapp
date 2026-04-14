@@ -126,4 +126,40 @@ export class WhatsAppService {
 
     return data;
   }
+
+  async sendImageMessage(to: string, imageUrl: string, caption?: string): Promise<any> {
+    if (!this.accessToken || !this.phoneNumberId) {
+      throw new Error('WhatsApp credentials not configured');
+    }
+
+    const body: any = {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'image',
+      image: {
+        link: imageUrl,
+      },
+    };
+
+    if (caption) {
+      body.image.caption = caption;
+    }
+
+    const response = await fetch(this.getApiUrl(), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(`WhatsApp API error: ${JSON.stringify(data)}`);
+    }
+
+    return data;
+  }
 }

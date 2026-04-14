@@ -127,22 +127,24 @@ export class WhatsAppService {
     return data;
   }
 
-  async sendImageMessage(to: string, imageUrl: string, caption?: string): Promise<any> {
+  async sendMediaMessage(to: string, mediaUrl: string, caption?: string): Promise<any> {
     if (!this.accessToken || !this.phoneNumberId) {
       throw new Error('WhatsApp credentials not configured');
     }
 
+    const mediaType = this.detectMediaType(mediaUrl);
+
     const body: any = {
       messaging_product: 'whatsapp',
       to,
-      type: 'image',
-      image: {
-        link: imageUrl,
+      type: mediaType,
+      [mediaType]: {
+        link: mediaUrl,
       },
     };
 
     if (caption) {
-      body.image.caption = caption;
+      body[mediaType].caption = caption;
     }
 
     const response = await fetch(this.getApiUrl(), {
@@ -161,5 +163,15 @@ export class WhatsAppService {
     }
 
     return data;
+  }
+
+  private detectMediaType(url: string): 'image' | 'video' | 'document' {
+    const extension = url.split('?')[0].split('#')[0].toLowerCase().split('.').pop() || '';
+    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const videoExts = ['mp4', '3gp'];
+
+    if (videoExts.includes(extension)) return 'video';
+    if (imageExts.includes(extension)) return 'image';
+    return 'document';
   }
 }

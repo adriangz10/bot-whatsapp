@@ -77,8 +77,8 @@ let WhatsAppController = class WhatsAppController {
             if (keywordMatch) {
                 await this.conversationService.saveMessage(from, 'user', text);
                 if (keywordMatch.media) {
-                    await this.whatsappService.sendImageMessage(from, keywordMatch.media, keywordMatch.answer);
-                    await this.conversationService.saveMessage(from, 'model', `${keywordMatch.answer}\n[Imagen: ${keywordMatch.media}]`);
+                    await this.whatsappService.sendMediaMessage(from, keywordMatch.media, keywordMatch.answer);
+                    await this.conversationService.saveMessage(from, 'model', `${keywordMatch.answer}\n[Media: ${keywordMatch.media}]`);
                 }
                 else {
                     await this.whatsappService.sendMessage(from, keywordMatch.answer);

@@ -9,5 +9,6 @@ export declare class WhatsAppService {
     sendTemplateMessage(to: string, templateName: string, languageCode?: string): Promise<any>;
     getProfilePicture(phoneNumber: string): Promise<string | null>;
     sendMessage(to: string, message: string): Promise<any>;
-    sendImageMessage(to: string, imageUrl: string, caption?: string): Promise<any>;
+    sendMediaMessage(to: string, mediaUrl: string, caption?: string): Promise<any>;
+    private detectMediaType;
 }

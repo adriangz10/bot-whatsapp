@@ -85,9 +85,9 @@ export class WhatsAppController {
         await this.conversationService.saveMessage(from, 'user', text);
 
         if (keywordMatch.media) {
-          // Enviar imagen con Answer como caption
-          await this.whatsappService.sendImageMessage(from, keywordMatch.media, keywordMatch.answer);
-          await this.conversationService.saveMessage(from, 'model', `${keywordMatch.answer}\n[Imagen: ${keywordMatch.media}]`);
+          // Enviar imagen/video con Answer como caption
+          await this.whatsappService.sendMediaMessage(from, keywordMatch.media, keywordMatch.answer);
+          await this.conversationService.saveMessage(from, 'model', `${keywordMatch.answer}\n[Media: ${keywordMatch.media}]`);
         } else {
           // Solo texto
           await this.whatsappService.sendMessage(from, keywordMatch.answer);

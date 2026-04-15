@@ -6,8 +6,11 @@ import {
   UpdateDateColumn,
   OneToMany,
   Index,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Message } from '../../conversation/entities/message.entity';
+import { Client } from '../../clients/entities/client.entity';
 
 export enum ChatStatus {
   ACTIVE = 'active',
@@ -63,6 +66,14 @@ export class Chat {
 
   @Column({ type: 'text', nullable: true })
   notes: string;
+
+  @Index()
+  @Column({ type: 'int', nullable: true })
+  clientId: number | null;
+
+  @ManyToOne(() => Client, (client) => client.chats, { nullable: true })
+  @JoinColumn({ name: 'clientId' })
+  client: Client | null;
 
   @Column({ type: 'int', default: 0 })
   unreadCount: number;

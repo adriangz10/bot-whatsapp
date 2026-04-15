@@ -8,6 +8,7 @@ import { ChatsService } from '../chats/chats.service';
 import { GoogleSheetsService } from '../google-sheets/google-sheets.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
+import { ClientsService } from '../clients/clients.service';
 export declare class WhatsAppController {
     private readonly whatsappService;
     private readonly geminiService;
@@ -17,8 +18,14 @@ export declare class WhatsAppController {
     private readonly googleSheetsService;
     private readonly conversationService;
     private readonly googleCalendarService;
-    constructor(whatsappService: WhatsAppService, geminiService: GeminiService, openaiService: OpenAIService, configService: ConfigService, chatsService: ChatsService, googleSheetsService: GoogleSheetsService, conversationService: ConversationService, googleCalendarService: GoogleCalendarService);
+    private readonly clientsService;
+    constructor(whatsappService: WhatsAppService, geminiService: GeminiService, openaiService: OpenAIService, configService: ConfigService, chatsService: ChatsService, googleSheetsService: GoogleSheetsService, conversationService: ConversationService, googleCalendarService: GoogleCalendarService, clientsService: ClientsService);
     sendMessage(body: SendMessageDto): Promise<any>;
+    private extractClientData;
+    private getMissingRequiredClientFields;
+    private buildMissingClientDataMessage;
+    private formatAppointmentStart;
+    private recoverPendingAppointmentIntent;
     verifyWebhook(mode: string, challenge: string, token: string): string | number;
     handleWebhook(body: WhatsAppWebhookDto): Promise<string>;
 }

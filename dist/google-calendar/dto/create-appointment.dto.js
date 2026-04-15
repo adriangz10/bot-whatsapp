@@ -11,6 +11,7 @@ class CreateAppointmentDto {
     timeZone;
     userId;
     chatId;
+    clientId;
     contactName;
 }
 exports.CreateAppointmentDto = CreateAppointmentDto;

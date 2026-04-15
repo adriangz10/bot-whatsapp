@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Chat = exports.ChatPriority = exports.ChatStatus = void 0;
 const typeorm_1 = require("typeorm");
 const message_entity_1 = require("../../conversation/entities/message.entity");
+const client_entity_1 = require("../../clients/entities/client.entity");
 var ChatStatus;
 (function (ChatStatus) {
     ChatStatus["ACTIVE"] = "active";
@@ -37,6 +38,8 @@ let Chat = class Chat {
     priority;
     tags;
     notes;
+    clientId;
+    client;
     unreadCount;
     messages;
     createdAt;
@@ -92,6 +95,16 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'text', nullable: true }),
     __metadata("design:type", String)
 ], Chat.prototype, "notes", void 0);
+__decorate([
+    (0, typeorm_1.Index)(),
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Object)
+], Chat.prototype, "clientId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => client_entity_1.Client, (client) => client.chats, { nullable: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'clientId' }),
+    __metadata("design:type", Object)
+], Chat.prototype, "client", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'int', default: 0 }),
     __metadata("design:type", Number)

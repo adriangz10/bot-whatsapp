@@ -8,5 +8,6 @@ export class CreateAppointmentDto {
   timeZone?: string;
   userId?: string;
   chatId?: number;
+  clientId?: number;
   contactName?: string;
 }

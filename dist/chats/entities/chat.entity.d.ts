@@ -1,4 +1,5 @@
 import { Message } from '../../conversation/entities/message.entity';
+import { Client } from '../../clients/entities/client.entity';
 export declare enum ChatStatus {
     ACTIVE = "active",
     INACTIVE = "inactive",
@@ -22,6 +23,8 @@ export declare class Chat {
     priority: ChatPriority;
     tags: string[];
     notes: string;
+    clientId: number | null;
+    client: Client | null;
     unreadCount: number;
     messages: Message[];
     createdAt: Date;

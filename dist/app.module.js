@@ -21,6 +21,7 @@ const google_docs_module_1 = require("./google-docs/google-docs.module");
 const google_sheets_module_1 = require("./google-sheets/google-sheets.module");
 const events_module_1 = require("./events/events.module");
 const google_calendar_module_1 = require("./google-calendar/google-calendar.module");
+const clients_module_1 = require("./clients/clients.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -51,6 +52,7 @@ exports.AppModule = AppModule = __decorate([
             whatsapp_module_1.WhatsAppModule,
             chats_module_1.ChatsModule,
             events_module_1.EventsModule,
+            clients_module_1.ClientsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

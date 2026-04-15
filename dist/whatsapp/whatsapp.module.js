@@ -16,12 +16,13 @@ const chats_module_1 = require("../chats/chats.module");
 const google_sheets_module_1 = require("../google-sheets/google-sheets.module");
 const conversation_module_1 = require("../conversation/conversation.module");
 const google_calendar_module_1 = require("../google-calendar/google-calendar.module");
+const clients_module_1 = require("../clients/clients.module");
 let WhatsAppModule = class WhatsAppModule {
 };
 exports.WhatsAppModule = WhatsAppModule;
 exports.WhatsAppModule = WhatsAppModule = __decorate([
     (0, common_1.Module)({
-        imports: [gemini_module_1.GeminiModule, openai_module_1.OpenAIModule, chats_module_1.ChatsModule, google_sheets_module_1.GoogleSheetsModule, conversation_module_1.ConversationModule, (0, common_1.forwardRef)(() => google_calendar_module_1.GoogleCalendarModule)],
+        imports: [gemini_module_1.GeminiModule, openai_module_1.OpenAIModule, chats_module_1.ChatsModule, google_sheets_module_1.GoogleSheetsModule, conversation_module_1.ConversationModule, (0, common_1.forwardRef)(() => google_calendar_module_1.GoogleCalendarModule), clients_module_1.ClientsModule],
         controllers: [whatsapp_controller_1.WhatsAppController],
         providers: [whatsapp_service_1.WhatsAppService],
         exports: [whatsapp_service_1.WhatsAppService],

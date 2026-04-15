@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Appointment = exports.AppointmentStatus = void 0;
 const typeorm_1 = require("typeorm");
+const client_entity_1 = require("../../clients/entities/client.entity");
 var AppointmentStatus;
 (function (AppointmentStatus) {
     AppointmentStatus["SCHEDULED"] = "scheduled";
@@ -21,6 +22,8 @@ let Appointment = class Appointment {
     googleEventId;
     userId;
     chatId;
+    clientId;
+    client;
     contactName;
     summary;
     description;
@@ -54,6 +57,16 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'int', nullable: true }),
     __metadata("design:type", Object)
 ], Appointment.prototype, "chatId", void 0);
+__decorate([
+    (0, typeorm_1.Index)(),
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Object)
+], Appointment.prototype, "clientId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => client_entity_1.Client, (client) => client.appointments, { nullable: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'clientId' }),
+    __metadata("design:type", Object)
+], Appointment.prototype, "client", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 255, nullable: true }),
     __metadata("design:type", Object)

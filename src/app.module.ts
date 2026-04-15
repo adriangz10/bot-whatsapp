@@ -12,6 +12,7 @@ import { GoogleDocsModule } from './google-docs/google-docs.module';
 import { GoogleSheetsModule } from './google-sheets/google-sheets.module';
 import { EventsModule } from './events/events.module';
 import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
+import { ClientsModule } from './clients/clients.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
     WhatsAppModule,
     ChatsModule,
     EventsModule,
+    ClientsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

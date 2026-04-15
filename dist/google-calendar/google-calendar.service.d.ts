@@ -83,6 +83,7 @@ export declare class GoogleCalendarService implements OnModuleInit {
         summary?: string | null;
         userId?: string | null;
         chatId?: number | null;
+        clientId?: number | null;
         contactName?: string | null;
         newStartDateTime: string;
         newEndDateTime: string;

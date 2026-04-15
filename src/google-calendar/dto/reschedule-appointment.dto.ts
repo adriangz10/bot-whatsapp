@@ -4,6 +4,7 @@ export class RescheduleAppointmentDto {
   summary?: string;
   userId?: string;
   chatId?: number;
+  clientId?: number;
   contactName?: string;
   newStartDateTime!: string;
   newEndDateTime!: string;

@@ -5,7 +5,10 @@ import {
   Index,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { Client } from '../../clients/entities/client.entity';
 
 export enum AppointmentStatus {
   SCHEDULED = 'scheduled',
@@ -28,6 +31,14 @@ export class Appointment {
   @Index()
   @Column({ type: 'int', nullable: true })
   chatId: number | null;
+
+  @Index()
+  @Column({ type: 'int', nullable: true })
+  clientId: number | null;
+
+  @ManyToOne(() => Client, (client) => client.appointments, { nullable: true })
+  @JoinColumn({ name: 'clientId' })
+  client: Client | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   contactName: string | null;

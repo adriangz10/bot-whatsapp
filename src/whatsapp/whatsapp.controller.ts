@@ -9,6 +9,13 @@ import { ChatsService } from '../chats/chats.service';
 import { GoogleSheetsService } from '../google-sheets/google-sheets.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
+import { ClientsService } from '../clients/clients.service';
+import type { AppointmentIntentResult } from '../gemini/gemini.service';
+
+const CLIENT_DATA_REQUEST_PREFIX =
+  'Antes de agendar necesito estos datos del cliente:';
+const REQUIRED_CLIENT_FIELDS = ['firstName', 'lastName', 'email', 'address'] as const;
+type RequiredClientField = (typeof REQUIRED_CLIENT_FIELDS)[number];
 
 @Controller('whatsapp')
 export class WhatsAppController {
@@ -21,11 +28,160 @@ export class WhatsAppController {
     private readonly googleSheetsService: GoogleSheetsService,
     private readonly conversationService: ConversationService,
     private readonly googleCalendarService: GoogleCalendarService,
+    private readonly clientsService: ClientsService,
   ) {}
 
   @Post('send')
   async sendMessage(@Body() body: SendMessageDto): Promise<any> {
     return await this.whatsappService.sendMessage(body.to, body.message);
+  }
+
+  private extractClientData(text: string, fallbackFullName?: string | null) {
+    const normalizedText = text.replace(/\s+/g, ' ').trim();
+    const payload: {
+      firstName?: string;
+      lastName?: string;
+      fullName?: string;
+      email?: string;
+      documentId?: string;
+      address?: string;
+    } = {};
+
+    const emailMatch = normalizedText.match(
+      /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+    );
+    if (emailMatch) {
+      payload.email = emailMatch[0];
+    }
+
+    const explicitNameMatch = normalizedText.match(
+      /(?:nombre(?:\s+completo)?|me llamo|soy)\s*[:,-]?\s*([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+){1,3})/i,
+    );
+    if (explicitNameMatch) {
+      payload.fullName = explicitNameMatch[1].trim();
+    }
+
+    const explicitFirstNameMatch = normalizedText.match(
+      /nombre\s*[:,-]?\s*([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)/i,
+    );
+    if (explicitFirstNameMatch) {
+      payload.firstName = explicitFirstNameMatch[1].trim();
+    }
+
+    const explicitLastNameMatch = normalizedText.match(
+      /apellido\s*[:,-]?\s*([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*)/i,
+    );
+    if (explicitLastNameMatch) {
+      payload.lastName = explicitLastNameMatch[1].trim();
+    }
+
+    const addressMatch = normalizedText.match(
+      /(?:direccion|domicilio|dirección)\s*[:,-]?\s*([^.!\n]+?)(?=(?:\s+(?:dni|mail|email|correo|nombre|apellido)\b)|$)/i,
+    );
+    if (addressMatch) {
+      payload.address = addressMatch[1].trim().replace(/[.,;]+$/, '');
+    }
+
+    const documentMatch = normalizedText.match(
+      /(?:dni|documento)\s*[:#-]?\s*([0-9.\-]{7,15})/i,
+    );
+    if (documentMatch) {
+      payload.documentId = documentMatch[1].trim();
+    }
+
+    if (!payload.fullName && fallbackFullName?.trim()) {
+      payload.fullName = fallbackFullName.trim();
+    }
+
+    if (payload.fullName && (!payload.firstName || !payload.lastName)) {
+      const [firstName, ...rest] = payload.fullName.split(/\s+/);
+      if (!payload.firstName && firstName) {
+        payload.firstName = firstName;
+      }
+      if (!payload.lastName && rest.length > 0) {
+        payload.lastName = rest.join(' ');
+      }
+    }
+
+    return payload;
+  }
+
+  private getMissingRequiredClientFields(client: {
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    address?: string | null;
+  }): RequiredClientField[] {
+    return REQUIRED_CLIENT_FIELDS.filter((field) => !client[field]?.trim());
+  }
+
+  private buildMissingClientDataMessage(missingFields: RequiredClientField[]) {
+    const labels: Record<RequiredClientField, string> = {
+      firstName: 'nombre',
+      lastName: 'apellido',
+      email: 'mail',
+      address: 'direccion',
+    };
+
+    return `${CLIENT_DATA_REQUEST_PREFIX} ${missingFields
+      .map((field) => labels[field])
+      .join(', ')}. DNI opcional.`;
+  }
+
+  private formatAppointmentStart(dateTime: string) {
+    return new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      hour12: true,
+      timeZone: 'America/Argentina/Buenos_Aires',
+    }).format(new Date(dateTime));
+  }
+
+  private async recoverPendingAppointmentIntent(
+    userId: string,
+    currentText: string,
+  ): Promise<AppointmentIntentResult | null> {
+    const history = await this.conversationService.getHistory(userId, 8);
+    let previousUserMessage: string | null = null;
+
+    for (let index = history.length - 1; index >= 0; index -= 1) {
+      const entry = history[index];
+      const content = entry.parts
+        .map((part) => ('text' in part ? part.text : ''))
+        .join('')
+        .trim();
+
+      if (
+        entry.role === 'model' &&
+        content.startsWith(CLIENT_DATA_REQUEST_PREFIX)
+      ) {
+        for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+          const previousEntry = history[cursor];
+          if (previousEntry.role !== 'user') {
+            continue;
+          }
+
+          previousUserMessage = previousEntry.parts
+            .map((part) => ('text' in part ? part.text : ''))
+            .join('')
+            .trim();
+          break;
+        }
+        break;
+      }
+    }
+
+    if (!previousUserMessage) {
+      return null;
+    }
+
+    const reconstructedPrompt = `${previousUserMessage}\n\nDatos del cliente:\n${currentText}`;
+    const recoveredIntent = await this.geminiService.detectAppointmentIntent(
+      userId,
+      reconstructedPrompt,
+      false,
+    );
+
+    return recoveredIntent.action === 'create' ? recoveredIntent : null;
   }
 
   // Webhook - Verificación
@@ -80,9 +236,16 @@ export class WhatsAppController {
       // Extraer nombre del contacto
       const contact = change?.value?.contacts?.[0];
       const contactName = contact?.profile?.name || null;
+      const client = await this.clientsService.upsertByUserId(from, {
+        fullName: contactName || undefined,
+        phone: from,
+      });
 
       // Obtener/crear chat y actualizar nombre y foto de perfil
       const chat = await this.chatsService.upsertByUserId(from, contactName || undefined);
+      if (client && chat.clientId !== client.id) {
+        await this.chatsService.update(chat.id, { clientId: client.id });
+      }
       if (chat) {
         const profilePictureUrl = await this.whatsappService.getProfilePicture(from);
         if (profilePictureUrl) {
@@ -96,11 +259,22 @@ export class WhatsAppController {
         await this.chatsService.reactivate(chat.id);
       }
 
-      const appointmentIntent = await this.geminiService.detectAppointmentIntent(
+      let appointmentIntent = await this.geminiService.detectAppointmentIntent(
         from,
         text,
         !isInactive,
       );
+
+      if (!appointmentIntent.intentDetected) {
+        const recoveredIntent = await this.recoverPendingAppointmentIntent(
+          from,
+          text,
+        );
+
+        if (recoveredIntent) {
+          appointmentIntent = recoveredIntent;
+        }
+      }
 
       if (appointmentIntent.intentDetected) {
         await this.conversationService.saveMessage(from, 'user', text);
@@ -116,6 +290,28 @@ export class WhatsAppController {
             appointmentIntent.startDateTime &&
             appointmentIntent.endDateTime
           ) {
+            const extractedClientData = this.extractClientData(text, client.fullName);
+            const updatedClient = await this.clientsService.upsertByUserId(from, {
+              ...extractedClientData,
+              phone: from,
+            });
+            const missingClientFields =
+              this.getMissingRequiredClientFields(updatedClient);
+
+            if (missingClientFields.length > 0) {
+              const missingClientDataMessage =
+                this.buildMissingClientDataMessage(missingClientFields);
+
+              await this.whatsappService.sendMessage(from, missingClientDataMessage);
+              await this.conversationService.saveMessage(
+                from,
+                'model',
+                missingClientDataMessage,
+              );
+
+              return 'OK';
+            }
+
             const createdAppointment =
               await this.googleCalendarService.createAppointment({
                 summary: appointmentIntent.summary,
@@ -124,17 +320,17 @@ export class WhatsAppController {
                 endDateTime: appointmentIntent.endDateTime,
                 userId: from,
                 chatId: chat?.id,
-                contactName: contactName || undefined,
+                clientId: updatedClient.id,
+                contactName: updatedClient.fullName || contactName || undefined,
               });
 
             const confirmationMessage = [
-              'Tu cita fue agendada correctamente.',
+              `Tu cita fue agendada correctamente (${updatedClient.fullName || `${updatedClient.firstName} ${updatedClient.lastName}`.trim()}).`,
               `Titulo: ${createdAppointment.event.summary}`,
-              `Inicio: ${createdAppointment.event.start?.dateTime || appointmentIntent.startDateTime}`,
-              `Fin: ${createdAppointment.event.end?.dateTime || appointmentIntent.endDateTime}`,
-              createdAppointment.event.htmlLink
-                ? `Link: ${createdAppointment.event.htmlLink}`
-                : null,
+              `Inicio: ${this.formatAppointmentStart(
+                createdAppointment.event.start?.dateTime ||
+                  appointmentIntent.startDateTime,
+              )}`,
             ]
               .filter(Boolean)
               .join('\n');
@@ -162,6 +358,7 @@ export class WhatsAppController {
                 summary: appointmentIntent.summary,
                 userId: from,
                 chatId: chat?.id,
+                clientId: client.id,
                 contactName: contactName || undefined,
                 newStartDateTime: appointmentIntent.startDateTime,
                 newEndDateTime: appointmentIntent.endDateTime,

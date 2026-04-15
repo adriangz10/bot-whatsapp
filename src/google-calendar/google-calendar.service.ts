@@ -131,6 +131,7 @@ export class GoogleCalendarService implements OnModuleInit {
     googleEventId: string;
     userId?: string;
     chatId?: number;
+    clientId?: number;
     contactName?: string;
     summary?: string | null;
     description?: string | null;
@@ -154,6 +155,8 @@ export class GoogleCalendarService implements OnModuleInit {
       params.userId !== undefined ? params.userId : (record.userId ?? null);
     record.chatId =
       params.chatId !== undefined ? params.chatId : (record.chatId ?? null);
+    record.clientId =
+      params.clientId !== undefined ? params.clientId : (record.clientId ?? null);
     record.contactName =
       params.contactName !== undefined
         ? params.contactName
@@ -304,6 +307,7 @@ export class GoogleCalendarService implements OnModuleInit {
       googleEventId: response.data.id!,
       userId: body.userId,
       chatId: body.chatId,
+      clientId: body.clientId,
       contactName: body.contactName,
       summary: response.data.summary,
       description: response.data.description,
@@ -410,6 +414,7 @@ export class GoogleCalendarService implements OnModuleInit {
     summary?: string | null;
     userId?: string | null;
     chatId?: number | null;
+    clientId?: number | null;
     contactName?: string | null;
     newStartDateTime: string;
     newEndDateTime: string;
@@ -463,6 +468,7 @@ export class GoogleCalendarService implements OnModuleInit {
       googleEventId: response.data.id!,
       userId: params.userId || undefined,
       chatId: params.chatId || undefined,
+      clientId: params.clientId || undefined,
       contactName: params.contactName || undefined,
       summary: response.data.summary,
       description: response.data.description,

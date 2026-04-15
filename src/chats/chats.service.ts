@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Chat, ChatStatus, ChatPriority } from './entities/chat.entity';
 import { Message } from '../conversation/entities/message.entity';
 import { UpdateChatDto, CreateChatDto } from './dto/chat.dto';
@@ -42,7 +42,9 @@ export class ChatsService {
     filters: ChatFilters,
     pagination: PaginationParams,
   ): Promise<PaginatedResult<Chat>> {
-    const query = this.chatRepository.createQueryBuilder('chat');
+    const query = this.chatRepository
+      .createQueryBuilder('chat')
+      .leftJoinAndSelect('chat.client', 'client');
 
     // Aplicar filtros
     if (filters.status) {
@@ -87,17 +89,28 @@ export class ChatsService {
   }
 
   async findOne(id: number): Promise<Chat | null> {
-    return this.chatRepository.findOne({ where: { id } });
+    return this.chatRepository.findOne({
+      where: { id },
+      relations: {
+        client: true,
+      },
+    });
   }
 
   async findByUserId(userId: string): Promise<Chat | null> {
-    return this.chatRepository.findOne({ where: { userId } });
+    return this.chatRepository.findOne({
+      where: { userId },
+      relations: {
+        client: true,
+      },
+    });
   }
 
   async create(createChatDto: CreateChatDto): Promise<Chat> {
     const chat = this.chatRepository.create({
       userId: createChatDto.userId,
       userName: createChatDto.userName,
+      clientId: createChatDto.clientId ?? null,
       status: ChatStatus.ACTIVE,
       priority: ChatPriority.MEDIUM,
       unreadCount: 0,
@@ -119,6 +132,8 @@ export class ChatsService {
 
     if (!chat) {
       chat = await this.create({ userId, userName });
+    } else if (userName && chat.userName !== userName) {
+      chat = (await this.update(chat.id, { userName })) || chat;
     }
 
     return chat;

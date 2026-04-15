@@ -1,3 +1,4 @@
+import { Client } from '../../clients/entities/client.entity';
 export declare enum AppointmentStatus {
     SCHEDULED = "scheduled",
     CANCELLED = "cancelled"
@@ -7,6 +8,8 @@ export declare class Appointment {
     googleEventId: string;
     userId: string | null;
     chatId: number | null;
+    clientId: number | null;
+    client: Client | null;
     contactName: string | null;
     summary: string;
     description: string | null;

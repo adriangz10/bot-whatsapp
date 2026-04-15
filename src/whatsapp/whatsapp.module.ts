@@ -7,9 +7,10 @@ import { ChatsModule } from '../chats/chats.module';
 import { GoogleSheetsModule } from '../google-sheets/google-sheets.module';
 import { ConversationModule } from '../conversation/conversation.module';
 import { GoogleCalendarModule } from '../google-calendar/google-calendar.module';
+import { ClientsModule } from '../clients/clients.module';
 
 @Module({
-  imports: [GeminiModule, OpenAIModule, ChatsModule, GoogleSheetsModule, ConversationModule, forwardRef(() => GoogleCalendarModule)],
+  imports: [GeminiModule, OpenAIModule, ChatsModule, GoogleSheetsModule, ConversationModule, forwardRef(() => GoogleCalendarModule), ClientsModule],
   controllers: [WhatsAppController],
   providers: [WhatsAppService],
   exports: [WhatsAppService],

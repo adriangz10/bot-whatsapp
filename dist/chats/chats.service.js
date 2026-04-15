@@ -29,7 +29,9 @@ let ChatsService = class ChatsService {
         this.eventsService = eventsService;
     }
     async findAll(filters, pagination) {
-        const query = this.chatRepository.createQueryBuilder('chat');
+        const query = this.chatRepository
+            .createQueryBuilder('chat')
+            .leftJoinAndSelect('chat.client', 'client');
         if (filters.status) {
             query.andWhere('chat.status = :status', { status: filters.status });
         }
@@ -58,15 +60,26 @@ let ChatsService = class ChatsService {
         };
     }
     async findOne(id) {
-        return this.chatRepository.findOne({ where: { id } });
+        return this.chatRepository.findOne({
+            where: { id },
+            relations: {
+                client: true,
+            },
+        });
     }
     async findByUserId(userId) {
-        return this.chatRepository.findOne({ where: { userId } });
+        return this.chatRepository.findOne({
+            where: { userId },
+            relations: {
+                client: true,
+            },
+        });
     }
     async create(createChatDto) {
         const chat = this.chatRepository.create({
             userId: createChatDto.userId,
             userName: createChatDto.userName,
+            clientId: createChatDto.clientId ?? null,
             status: chat_entity_1.ChatStatus.ACTIVE,
             priority: chat_entity_1.ChatPriority.MEDIUM,
             unreadCount: 0,
@@ -85,6 +98,9 @@ let ChatsService = class ChatsService {
         let chat = await this.findByUserId(userId);
         if (!chat) {
             chat = await this.create({ userId, userName });
+        }
+        else if (userName && chat.userName !== userName) {
+            chat = (await this.update(chat.id, { userName })) || chat;
         }
         return chat;
     }

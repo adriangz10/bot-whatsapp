@@ -3,6 +3,7 @@ import { ChatStatus, ChatPriority } from '../entities/chat.entity';
 export class UpdateChatDto {
   userName?: string;
   profilePictureUrl?: string;
+  clientId?: number | null;
   status?: ChatStatus;
   priority?: ChatPriority;
   tags?: string[];
@@ -12,4 +13,5 @@ export class UpdateChatDto {
 export class CreateChatDto {
   userId: string;
   userName?: string;
+  clientId?: number | null;
 }

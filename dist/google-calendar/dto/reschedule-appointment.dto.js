@@ -7,6 +7,7 @@ class RescheduleAppointmentDto {
     summary;
     userId;
     chatId;
+    clientId;
     contactName;
     newStartDateTime;
     newEndDateTime;

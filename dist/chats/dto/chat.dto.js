@@ -4,6 +4,7 @@ exports.CreateChatDto = exports.UpdateChatDto = void 0;
 class UpdateChatDto {
     userName;
     profilePictureUrl;
+    clientId;
     status;
     priority;
     tags;
@@ -13,6 +14,7 @@ exports.UpdateChatDto = UpdateChatDto;
 class CreateChatDto {
     userId;
     userName;
+    clientId;
 }
 exports.CreateChatDto = CreateChatDto;
 //# sourceMappingURL=chat.dto.js.map

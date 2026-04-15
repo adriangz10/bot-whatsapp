@@ -31,6 +31,40 @@
 $ npm install
 ```
 
+## Google Calendar module
+
+The project now includes a `google-calendar` NestJS module for scheduling appointments.
+
+Required environment variables:
+
+```env
+GOOGLE_CREDENTIALS={"client_email":"...","private_key":"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"}
+GOOGLE_CALENDAR_ID=your-calendar-id@group.calendar.google.com
+GOOGLE_CALENDAR_TIME_ZONE=America/Argentina/Buenos_Aires
+```
+
+Available endpoints:
+
+```bash
+GET  /google-calendar/appointments?timeMin=2026-04-15T13:00:00Z&timeMax=2026-04-15T18:00:00Z
+GET  /google-calendar/availability?startDateTime=2026-04-15T14:00:00Z&endDateTime=2026-04-15T15:00:00Z
+POST /google-calendar/appointments
+```
+
+Example body for `POST /google-calendar/appointments`:
+
+```json
+{
+  "summary": "Cita con cliente",
+  "description": "Revisión de equipo",
+  "location": "Sucursal centro",
+  "startDateTime": "2026-04-15T14:00:00Z",
+  "endDateTime": "2026-04-15T15:00:00Z",
+  "attendeeEmails": ["cliente@example.com"],
+  "timeZone": "America/Argentina/Buenos_Aires"
+}
+```
+
 ## Compile and run the project
 
 ```bash

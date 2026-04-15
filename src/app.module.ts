@@ -11,6 +11,7 @@ import { ChatsModule } from './chats/chats.module';
 import { GoogleDocsModule } from './google-docs/google-docs.module';
 import { GoogleSheetsModule } from './google-sheets/google-sheets.module';
 import { EventsModule } from './events/events.module';
+import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { EventsModule } from './events/events.module';
     }),
     GoogleDocsModule,
     GoogleSheetsModule,
+    GoogleCalendarModule,
     ConversationModule,
     GeminiModule,
     OpenAIModule,

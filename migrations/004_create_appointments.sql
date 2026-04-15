@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS `appointments` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `googleEventId` varchar(255) NOT NULL,
+  `userId` varchar(100) DEFAULT NULL,
+  `chatId` int DEFAULT NULL,
+  `contactName` varchar(255) DEFAULT NULL,
+  `summary` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `location` text DEFAULT NULL,
+  `startDateTime` datetime NOT NULL,
+  `endDateTime` datetime NOT NULL,
+  `status` enum('scheduled','cancelled') NOT NULL DEFAULT 'scheduled',
+  `reminder1hSentAt` datetime DEFAULT NULL,
+  `reminder20mSentAt` datetime DEFAULT NULL,
+  `cancelledAt` datetime DEFAULT NULL,
+  `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updatedAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_googleEventId` (`googleEventId`),
+  KEY `idx_appointments_userId` (`userId`),
+  KEY `idx_appointments_chatId` (`chatId`),
+  KEY `idx_appointments_startDateTime` (`startDateTime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -131,7 +131,7 @@ Reglas:
 - description debe resumir el motivo si aparece.
 - startDateTime y endDateTime son la nueva fecha/hora para crear o reprogramar.
 - targetStartDateTime y targetEndDateTime son la fecha/hora original de la cita a localizar para cancelar o reprogramar.
-- Todas las fechas deben estar en formato ISO 8601 completo.
+- Todas las fechas deben estar en formato ISO 8601 completo y SIEMPRE incluir zona horaria explicita, usando Z o un offset como -03:00.
 - Si el usuario da solo hora de inicio y no duracion, asume 1 hora y completa endDateTime.
 - Si el usuario quiere cancelar y no da hora final, targetEndDateTime puede ser null.
 - Si no puedes inferir un campo con seguridad, devuelvelo en null.

@@ -41,13 +41,21 @@ Required environment variables:
 GOOGLE_CREDENTIALS={"client_email":"...","private_key":"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"}
 GOOGLE_CALENDAR_ID=your-calendar-id@group.calendar.google.com
 GOOGLE_CALENDAR_TIME_ZONE=America/Argentina/Buenos_Aires
+TZ=America/Argentina/Buenos_Aires
 ```
+
+Date handling rules:
+
+- Always send datetimes with an explicit timezone.
+- Accepted examples: `2026-04-15T15:00:00-03:00` or `2026-04-15T18:00:00Z`
+- Invalid example: `2026-04-15T15:00:00`
+- `TZ=America/Argentina/Buenos_Aires` helps keep server-local formatting aligned with Argentina, but the API still requires an explicit timezone in every datetime input.
 
 Available endpoints:
 
 ```bash
-GET  /google-calendar/appointments?timeMin=2026-04-15T13:00:00Z&timeMax=2026-04-15T18:00:00Z
-GET  /google-calendar/availability?startDateTime=2026-04-15T14:00:00Z&endDateTime=2026-04-15T15:00:00Z
+GET  /google-calendar/appointments?timeMin=2026-04-15T10:00:00-03:00&timeMax=2026-04-15T15:00:00-03:00
+GET  /google-calendar/availability?startDateTime=2026-04-15T11:00:00-03:00&endDateTime=2026-04-15T12:00:00-03:00
 POST /google-calendar/appointments
 ```
 
@@ -58,8 +66,8 @@ Example body for `POST /google-calendar/appointments`:
   "summary": "Cita con cliente",
   "description": "Revisión de equipo",
   "location": "Sucursal centro",
-  "startDateTime": "2026-04-15T14:00:00Z",
-  "endDateTime": "2026-04-15T15:00:00Z",
+  "startDateTime": "2026-04-15T11:00:00-03:00",
+  "endDateTime": "2026-04-15T12:00:00-03:00",
   "attendeeEmails": ["cliente@example.com"],
   "timeZone": "America/Argentina/Buenos_Aires"
 }

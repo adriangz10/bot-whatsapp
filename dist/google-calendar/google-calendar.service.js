@@ -19,9 +19,11 @@ const config_1 = require("@nestjs/config");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const appointment_entity_1 = require("./entities/appointment.entity");
-let GoogleCalendarService = GoogleCalendarService_1 = class GoogleCalendarService {
+let GoogleCalendarService = class GoogleCalendarService {
+    static { GoogleCalendarService_1 = this; }
     configService;
     appointmentRepository;
+    static ISO_DATE_TIME_WITH_TIME_ZONE_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
     logger = new common_1.Logger(GoogleCalendarService_1.name);
     calendarId;
     defaultTimeZone;
@@ -83,6 +85,9 @@ let GoogleCalendarService = GoogleCalendarService_1 = class GoogleCalendarServic
     parseDateTime(value, fieldName) {
         if (!value) {
             throw new common_1.BadRequestException(`${fieldName} is required`);
+        }
+        if (!GoogleCalendarService_1.ISO_DATE_TIME_WITH_TIME_ZONE_REGEX.test(value)) {
+            throw new common_1.BadRequestException(`${fieldName} must be a valid ISO date with timezone, for example 2026-04-15T15:00:00-03:00 or 2026-04-15T18:00:00Z`);
         }
         const date = new Date(value);
         if (Number.isNaN(date.getTime())) {

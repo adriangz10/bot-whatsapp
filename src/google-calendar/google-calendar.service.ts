@@ -24,6 +24,8 @@ type GoogleCredentials = {
 
 @Injectable()
 export class GoogleCalendarService implements OnModuleInit {
+  private static readonly ISO_DATE_TIME_WITH_TIME_ZONE_REGEX =
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
   private readonly logger = new Logger(GoogleCalendarService.name);
   private readonly calendarId: string;
   private readonly defaultTimeZone: string;
@@ -100,6 +102,14 @@ export class GoogleCalendarService implements OnModuleInit {
   private parseDateTime(value: string, fieldName: string): string {
     if (!value) {
       throw new BadRequestException(`${fieldName} is required`);
+    }
+
+    if (
+      !GoogleCalendarService.ISO_DATE_TIME_WITH_TIME_ZONE_REGEX.test(value)
+    ) {
+      throw new BadRequestException(
+        `${fieldName} must be a valid ISO date with timezone, for example 2026-04-15T15:00:00-03:00 or 2026-04-15T18:00:00Z`,
+      );
     }
 
     const date = new Date(value);

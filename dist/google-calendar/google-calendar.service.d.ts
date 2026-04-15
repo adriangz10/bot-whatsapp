@@ -9,6 +9,7 @@ import { Appointment } from './entities/appointment.entity';
 export declare class GoogleCalendarService implements OnModuleInit {
     private readonly configService;
     private readonly appointmentRepository;
+    private static readonly ISO_DATE_TIME_WITH_TIME_ZONE_REGEX;
     private readonly logger;
     private readonly calendarId;
     private readonly defaultTimeZone;

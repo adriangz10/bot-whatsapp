@@ -6,6 +6,7 @@ export declare class GoogleDocsService implements OnModuleInit {
     private readonly ragService;
     private readonly logger;
     private documentContent;
+    private priceEntries;
     private readonly documentId;
     private docsClient;
     constructor(configService: ConfigService, ragService: RagService);
@@ -15,5 +16,17 @@ export declare class GoogleDocsService implements OnModuleInit {
     private loadDocument;
     private extractText;
     getContext(): string;
+    findPriceAnswer(userMessage: string): string | null;
     reload(): Promise<void>;
+    private parsePriceEntries;
+    private normalizeText;
+    private looksLikePriceQuestion;
+    private findBestPriceMatch;
+    private scorePriceEntry;
+    private detectEquipmentScope;
+    private detectSinglePrice;
+    private inferPriceLabels;
+    private getPriceByPreferredLabels;
+    private formatLabeledPrices;
+    private humanizePriceLabel;
 }

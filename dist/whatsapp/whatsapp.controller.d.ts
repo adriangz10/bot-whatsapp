@@ -9,6 +9,7 @@ import { GoogleSheetsService } from '../google-sheets/google-sheets.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
 import { ClientsService } from '../clients/clients.service';
+import { GoogleDocsService } from '../google-docs/google-docs.service';
 export declare class WhatsAppController {
     private readonly whatsappService;
     private readonly geminiService;
@@ -19,7 +20,8 @@ export declare class WhatsAppController {
     private readonly conversationService;
     private readonly googleCalendarService;
     private readonly clientsService;
-    constructor(whatsappService: WhatsAppService, geminiService: GeminiService, openaiService: OpenAIService, configService: ConfigService, chatsService: ChatsService, googleSheetsService: GoogleSheetsService, conversationService: ConversationService, googleCalendarService: GoogleCalendarService, clientsService: ClientsService);
+    private readonly googleDocsService;
+    constructor(whatsappService: WhatsAppService, geminiService: GeminiService, openaiService: OpenAIService, configService: ConfigService, chatsService: ChatsService, googleSheetsService: GoogleSheetsService, conversationService: ConversationService, googleCalendarService: GoogleCalendarService, clientsService: ClientsService, googleDocsService: GoogleDocsService);
     sendMessage(body: SendMessageDto): Promise<any>;
     private extractClientData;
     private getMissingRequiredClientFields;

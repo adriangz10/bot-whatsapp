@@ -25,6 +25,7 @@ const google_sheets_service_1 = require("../google-sheets/google-sheets.service"
 const conversation_service_1 = require("../conversation/conversation.service");
 const google_calendar_service_1 = require("../google-calendar/google-calendar.service");
 const clients_service_1 = require("../clients/clients.service");
+const google_docs_service_1 = require("../google-docs/google-docs.service");
 const CLIENT_DATA_REQUEST_PREFIX = 'Antes de agendar necesito estos datos del cliente:';
 const REQUIRED_CLIENT_FIELDS = ['firstName', 'lastName', 'email', 'address'];
 let WhatsAppController = class WhatsAppController {
@@ -37,7 +38,8 @@ let WhatsAppController = class WhatsAppController {
     conversationService;
     googleCalendarService;
     clientsService;
-    constructor(whatsappService, geminiService, openaiService, configService, chatsService, googleSheetsService, conversationService, googleCalendarService, clientsService) {
+    googleDocsService;
+    constructor(whatsappService, geminiService, openaiService, configService, chatsService, googleSheetsService, conversationService, googleCalendarService, clientsService, googleDocsService) {
         this.whatsappService = whatsappService;
         this.geminiService = geminiService;
         this.openaiService = openaiService;
@@ -47,6 +49,7 @@ let WhatsAppController = class WhatsAppController {
         this.conversationService = conversationService;
         this.googleCalendarService = googleCalendarService;
         this.clientsService = clientsService;
+        this.googleDocsService = googleDocsService;
     }
     async sendMessage(body) {
         return await this.whatsappService.sendMessage(body.to, body.message);
@@ -336,6 +339,13 @@ let WhatsAppController = class WhatsAppController {
                 }
                 return 'OK';
             }
+            const priceAnswer = this.googleDocsService.findPriceAnswer(text);
+            if (priceAnswer) {
+                await this.conversationService.saveMessage(from, 'user', text);
+                await this.whatsappService.sendMessage(from, priceAnswer);
+                await this.conversationService.saveMessage(from, 'model', priceAnswer);
+                return 'OK';
+            }
             const timeoutMs = 30000;
             const response = await Promise.race([
                 this.geminiService.chat(from, text, !isInactive),
@@ -384,6 +394,7 @@ exports.WhatsAppController = WhatsAppController = __decorate([
         google_sheets_service_1.GoogleSheetsService,
         conversation_service_1.ConversationService,
         google_calendar_service_1.GoogleCalendarService,
-        clients_service_1.ClientsService])
+        clients_service_1.ClientsService,
+        google_docs_service_1.GoogleDocsService])
 ], WhatsAppController);
 //# sourceMappingURL=whatsapp.controller.js.map

@@ -10,6 +10,7 @@ import { GoogleSheetsService } from '../google-sheets/google-sheets.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
 import { ClientsService } from '../clients/clients.service';
+import { GoogleDocsService } from '../google-docs/google-docs.service';
 import type { AppointmentIntentResult } from '../gemini/gemini.service';
 
 const CLIENT_DATA_REQUEST_PREFIX =
@@ -29,6 +30,7 @@ export class WhatsAppController {
     private readonly conversationService: ConversationService,
     private readonly googleCalendarService: GoogleCalendarService,
     private readonly clientsService: ClientsService,
+    private readonly googleDocsService: GoogleDocsService,
   ) {}
 
   @Post('send')
@@ -470,6 +472,14 @@ export class WhatsAppController {
           await this.conversationService.saveMessage(from, 'model', keywordMatch.answer);
         }
 
+        return 'OK';
+      }
+
+      const priceAnswer = this.googleDocsService.findPriceAnswer(text);
+      if (priceAnswer) {
+        await this.conversationService.saveMessage(from, 'user', text);
+        await this.whatsappService.sendMessage(from, priceAnswer);
+        await this.conversationService.saveMessage(from, 'model', priceAnswer);
         return 'OK';
       }
 

@@ -8,9 +8,10 @@ import { GoogleSheetsModule } from '../google-sheets/google-sheets.module';
 import { ConversationModule } from '../conversation/conversation.module';
 import { GoogleCalendarModule } from '../google-calendar/google-calendar.module';
 import { ClientsModule } from '../clients/clients.module';
+import { GoogleDocsModule } from '../google-docs/google-docs.module';
 
 @Module({
-  imports: [GeminiModule, OpenAIModule, ChatsModule, GoogleSheetsModule, ConversationModule, forwardRef(() => GoogleCalendarModule), ClientsModule],
+  imports: [GeminiModule, OpenAIModule, ChatsModule, GoogleSheetsModule, GoogleDocsModule, ConversationModule, forwardRef(() => GoogleCalendarModule), ClientsModule],
   controllers: [WhatsAppController],
   providers: [WhatsAppService],
   exports: [WhatsAppService],

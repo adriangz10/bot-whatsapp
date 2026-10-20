@@ -2,10 +2,10 @@ import { Module } from '@nestjs/common';
 import { OpenAIService } from './openai.service';
 import { OpenAIController } from './openai.controller';
 import { ConversationModule } from '../conversation/conversation.module';
-import { RagModule } from '../rag/rag.module';
+import { GoogleDocsModule } from '../google-docs/google-docs.module';
 
 @Module({
-  imports: [ConversationModule, RagModule],
+  imports: [ConversationModule, GoogleDocsModule],
   controllers: [OpenAIController],
   providers: [OpenAIService],
   exports: [OpenAIService],

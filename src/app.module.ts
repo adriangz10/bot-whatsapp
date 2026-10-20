@@ -9,7 +9,6 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
 import { ConversationModule } from './conversation/conversation.module';
 import { ChatsModule } from './chats/chats.module';
 import { GoogleDocsModule } from './google-docs/google-docs.module';
-import { GoogleSheetsModule } from './google-sheets/google-sheets.module';
 import { EventsModule } from './events/events.module';
 import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
 import { ClientsModule } from './clients/clients.module';
@@ -43,7 +42,6 @@ import { ClientsModule } from './clients/clients.module';
       }),
     }),
     GoogleDocsModule,
-    GoogleSheetsModule,
     GoogleCalendarModule,
     ConversationModule,
     GeminiModule,

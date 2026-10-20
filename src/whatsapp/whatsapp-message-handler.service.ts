@@ -5,7 +5,6 @@ import { ProcessedMessageService } from './processed-message.service';
 import { GeminiService } from '../gemini/gemini.service';
 import { OpenAIService } from '../openai/openai.service';
 import { ChatsService } from '../chats/chats.service';
-import { GoogleSheetsService } from '../google-sheets/google-sheets.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
 import { ClientsService } from '../clients/clients.service';
@@ -18,6 +17,7 @@ import {
   extractClientData,
   getMissingRequiredClientFields,
 } from './client-data.util';
+import { detectSmallTalk, mentionsAppointment } from './message-filters.util';
 
 type WebhookValue =
   WhatsAppWebhookDto['entry'][number]['changes'][number]['value'];
@@ -25,24 +25,42 @@ type IncomingMessage = NonNullable<WebhookValue['messages']>[number];
 
 const GEMINI_TIMEOUT_MS = 30_000;
 const INACTIVITY_MINUTES = 30;
+/** Espera para juntar mensajes seguidos del mismo usuario en un solo pedido al modelo. */
+const BATCH_WINDOW_MS = 3_000;
+/** Cuánto dura una gestión de turno abierta (el bot pidió datos y espera respuesta). */
+const PENDING_APPOINTMENT_MS = 30 * 60 * 1000;
+const CHAT_HISTORY_LIMIT = 16;
+
+interface PendingBatch {
+  messages: IncomingMessage[];
+  value: WebhookValue;
+  timer?: NodeJS.Timeout;
+}
 
 /**
  * Orquesta el procesamiento de los mensajes entrantes de WhatsApp:
- * audio -> texto, cliente/chat, citas, palabras clave, precios y, por último, Gemini + RAG.
+ * audio -> texto, cliente/chat, citas (Google Calendar) y, si no, Gemini + Google Docs.
  * Se ejecuta fuera del ciclo request/response del webhook.
+ *
+ * Para ahorrar pedidos al modelo: junta los mensajes seguidos de un usuario,
+ * responde saludos sin LLM y solo detecta turnos cuando el mensaje los menciona.
  */
 @Injectable()
 export class WhatsAppMessageHandler {
   private readonly logger = new Logger(WhatsAppMessageHandler.name);
   /** Cola por usuario: los mensajes de un mismo número se procesan en orden. */
   private readonly userQueues = new Map<string, Promise<void>>();
+  private readonly batches = new Map<string, PendingBatch>();
+  /** Usuarios con una gestión de turno en curso, y desde cuándo. */
+  private readonly pendingAppointments = new Map<string, number>();
+  /** Usuarios cuya foto de perfil ya se consultó en esta ejecución. */
+  private readonly profilePictureChecked = new Set<string>();
 
   constructor(
     private readonly whatsappService: WhatsAppService,
     private readonly geminiService: GeminiService,
     private readonly openaiService: OpenAIService,
     private readonly chatsService: ChatsService,
-    private readonly googleSheetsService: GoogleSheetsService,
     private readonly conversationService: ConversationService,
     private readonly googleCalendarService: GoogleCalendarService,
     private readonly clientsService: ClientsService,
@@ -50,86 +68,125 @@ export class WhatsAppMessageHandler {
     private readonly processedMessages: ProcessedMessageService,
   ) {}
 
-  /** Encola todos los mensajes del payload (Meta puede agrupar varios) y retorna enseguida. */
+  /** Agrupa los mensajes del payload por usuario (Meta puede mandar varios) y retorna enseguida. */
   dispatch(body: WhatsAppWebhookDto): void {
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
         for (const message of change.value?.messages ?? []) {
-          this.enqueue(message, change.value);
+          this.collect(message, change.value);
         }
       }
     }
   }
 
-  private enqueue(message: IncomingMessage, value: WebhookValue): void {
-    const previous = this.userQueues.get(message.from) ?? Promise.resolve();
+  /** Reinicia la espera con cada mensaje nuevo; al vencer, procesa todos juntos. */
+  private collect(message: IncomingMessage, value: WebhookValue): void {
+    const from = message.from;
+    const batch = this.batches.get(from) ?? { messages: [], value };
+    clearTimeout(batch.timer);
+    batch.messages.push(message);
+    batch.value = value;
+    batch.timer = setTimeout(() => {
+      this.batches.delete(from);
+      this.enqueue(from, batch.messages, batch.value);
+    }, BATCH_WINDOW_MS);
+    this.batches.set(from, batch);
+  }
+
+  private enqueue(
+    from: string,
+    messages: IncomingMessage[],
+    value: WebhookValue,
+  ): void {
+    const previous = this.userQueues.get(from) ?? Promise.resolve();
     const next: Promise<void> = previous
-      .then(() => this.processMessage(message, value))
+      .then(() => this.processMessages(messages, value))
       .catch((error) => {
         this.logger.error(
           `Webhook error: ${error instanceof Error ? error.message : error}`,
         );
       })
       .finally(() => {
-        if (this.userQueues.get(message.from) === next) {
-          this.userQueues.delete(message.from);
+        if (this.userQueues.get(from) === next) {
+          this.userQueues.delete(from);
         }
       });
 
-    this.userQueues.set(message.from, next);
+    this.userQueues.set(from, next);
   }
 
-  private async processMessage(
-    message: IncomingMessage,
+  private async processMessages(
+    messages: IncomingMessage[],
     value: WebhookValue,
   ): Promise<void> {
-    const messageId = message.id;
+    const claimed: IncomingMessage[] = [];
+    for (const message of messages) {
+      if (!message.id || (await this.processedMessages.claim(message.id))) {
+        claimed.push(message);
+      }
+    }
 
-    if (messageId && !(await this.processedMessages.claim(messageId))) {
+    if (claimed.length === 0) {
       return;
     }
 
     try {
-      await this.handleMessage(message, value);
+      await this.handleMessages(claimed, value);
     } catch (error) {
-      // Liberar para que el reintento de Meta pueda procesarlo de nuevo
-      if (messageId) {
-        await this.processedMessages.release(messageId).catch(() => undefined);
+      // Liberar para que el reintento de Meta pueda procesarlos de nuevo
+      for (const message of claimed) {
+        if (message.id) {
+          await this.processedMessages
+            .release(message.id)
+            .catch(() => undefined);
+        }
       }
       throw error;
     }
   }
 
-  private async handleMessage(
+  /** Texto del mensaje; los audios se transcriben. */
+  private async messageText(
     message: IncomingMessage,
+  ): Promise<string | undefined> {
+    if (message.type !== 'audio' || !message.audio) {
+      return message.text?.body;
+    }
+
+    try {
+      const audioBuffer = await this.whatsappService.downloadMedia(
+        message.audio.id,
+      );
+      return await this.openaiService.transcribe(audioBuffer);
+    } catch (err) {
+      this.logger.error(
+        `Error transcribing audio: ${err instanceof Error ? err.message : err}`,
+      );
+      await this.whatsappService.sendMessage(
+        message.from,
+        'No pude procesar el audio. Por favor, envíalo de nuevo o escríbeme tu consulta.',
+      );
+      return undefined;
+    }
+  }
+
+  private async handleMessages(
+    messages: IncomingMessage[],
     value: WebhookValue,
   ): Promise<void> {
-    const from = message.from;
-    let text: string | undefined;
-
-    if (message.type === 'audio' && message.audio) {
-      try {
-        const audioBuffer = await this.whatsappService.downloadMedia(
-          message.audio.id,
-        );
-        text = await this.openaiService.transcribe(audioBuffer);
-      } catch (err) {
-        this.logger.error(
-          `Error transcribing audio: ${err instanceof Error ? err.message : err}`,
-        );
-        await this.whatsappService.sendMessage(
-          from,
-          'No pude procesar el audio. Por favor, envíalo de nuevo o escríbeme tu consulta.',
-        );
-        return;
+    const from = messages[0].from;
+    const texts: string[] = [];
+    for (const message of messages) {
+      const messageText = await this.messageText(message);
+      if (messageText?.trim()) {
+        texts.push(messageText.trim());
       }
-    } else {
-      text = message.text?.body;
     }
 
-    if (!text) {
+    if (texts.length === 0) {
       return;
     }
+    const text = texts.join('\n');
 
     const contact =
       value.contacts?.find((c) => c.wa_id === from) ?? value.contacts?.[0];
@@ -147,7 +204,9 @@ export class WhatsAppMessageHandler {
     if (client && chat.clientId !== client.id) {
       await this.chatsService.update(chat.id, { clientId: client.id });
     }
-    if (chat) {
+    // La foto se consulta una vez por usuario y ejecución, no en cada mensaje
+    if (chat && !this.profilePictureChecked.has(from)) {
+      this.profilePictureChecked.add(from);
       const profilePictureUrl =
         await this.whatsappService.getProfilePicture(from);
       if (profilePictureUrl) {
@@ -161,77 +220,55 @@ export class WhatsAppMessageHandler {
       : false;
     if (isInactive) {
       await this.chatsService.reactivate(chat.id);
+      this.pendingAppointments.delete(from);
     }
 
-    let appointmentIntent = await this.geminiService.detectAppointmentIntent(
-      from,
-      text,
-      !isInactive,
-    );
+    const pendingAppointment = await this.hasPendingAppointment(from);
 
-    if (!appointmentIntent.intentDetected) {
-      const recoveredIntent = await this.recoverPendingAppointmentIntent(
+    // Saludos y agradecimientos sueltos: respuesta fija, sin pedido al modelo
+    const smallTalk = pendingAppointment ? null : detectSmallTalk(text);
+    if (smallTalk) {
+      await this.conversationService.saveMessage(from, 'user', text);
+      await this.reply(from, this.smallTalkReply(smallTalk));
+      return;
+    }
+
+    // La detección de turnos solo corre si el mensaje habla de turnos o hay uno en curso
+    if (pendingAppointment || mentionsAppointment(text)) {
+      let appointmentIntent = await this.geminiService.detectAppointmentIntent(
         from,
         text,
+        !isInactive,
       );
-      if (recoveredIntent) {
-        appointmentIntent = recoveredIntent;
+
+      if (!appointmentIntent.intentDetected && pendingAppointment) {
+        const recoveredIntent = await this.recoverPendingAppointmentIntent(
+          from,
+          text,
+        );
+        if (recoveredIntent) {
+          appointmentIntent = recoveredIntent;
+        }
+      }
+
+      if (appointmentIntent.intentDetected) {
+        await this.handleAppointmentIntent({
+          from,
+          text,
+          appointmentIntent,
+          client,
+          chatId: chat?.id,
+          contactName,
+        });
+        return;
       }
     }
 
-    if (appointmentIntent.intentDetected) {
-      await this.handleAppointmentIntent({
-        from,
-        text,
-        appointmentIntent,
-        client,
-        chatId: chat?.id,
-        contactName,
-      });
-      return;
-    }
-
-    // Respuestas por palabra clave (Google Sheets)
-    const keywordMatch = this.googleSheetsService.findKeyword(text);
-    if (keywordMatch) {
-      await this.conversationService.saveMessage(from, 'user', text);
-
-      if (keywordMatch.media) {
-        await this.whatsappService.sendMediaMessage(
-          from,
-          keywordMatch.media,
-          keywordMatch.answer,
-        );
-        await this.conversationService.saveMessage(
-          from,
-          'model',
-          `${keywordMatch.answer}\n[Media: ${keywordMatch.media}]`,
-        );
-      } else {
-        await this.whatsappService.sendMessage(from, keywordMatch.answer);
-        await this.conversationService.saveMessage(
-          from,
-          'model',
-          keywordMatch.answer,
-        );
-      }
-      return;
-    }
-
-    // Precios (Google Docs)
-    const priceAnswer = this.googleDocsService.findPriceAnswer(text);
-    if (priceAnswer) {
-      await this.conversationService.saveMessage(from, 'user', text);
-      await this.whatsappService.sendMessage(from, priceAnswer);
-      await this.conversationService.saveMessage(from, 'model', priceAnswer);
-      return;
-    }
-
-    // Flujo normal: Gemini + RAG
+    // Flujo normal: Gemini con la información del Google Doc
     let timer: NodeJS.Timeout | undefined;
     try {
       const response = await Promise.race([
-        this.geminiService.chat(from, text, !isInactive),
+        this.geminiService.chat(from, text, !isInactive, CHAT_HISTORY_LIMIT),
         new Promise<never>((_, reject) => {
           timer = setTimeout(
             () => reject(new Error('Gemini timeout')),
@@ -243,6 +280,42 @@ export class WhatsAppMessageHandler {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  /**
+   * Hay un turno en curso si el bot pidió datos en los últimos minutos,
+   * o (tras un reinicio) si su último mensaje fue el pedido de datos del cliente.
+   */
+  private async hasPendingAppointment(userId: string): Promise<boolean> {
+    const since = this.pendingAppointments.get(userId);
+    if (since !== undefined) {
+      if (Date.now() - since < PENDING_APPOINTMENT_MS) return true;
+      this.pendingAppointments.delete(userId);
+    }
+
+    const [last] = await this.conversationService.getHistory(userId, 1);
+    return (
+      last?.role === 'model' &&
+      contentText(last).startsWith(CLIENT_DATA_REQUEST_PREFIX)
+    );
+  }
+
+  private smallTalkReply(kind: 'greeting' | 'thanks'): string {
+    const { name, assistantName, greeting } =
+      this.googleDocsService.getBusinessInfo();
+
+    if (kind === 'thanks') {
+      return '¡De nada! Si necesitás algo más, escribime.';
+    }
+    if (greeting) {
+      return greeting;
+    }
+
+    const who = [
+      assistantName ? `Soy ${assistantName}` : 'Soy el asistente virtual',
+      name ? ` de ${name}` : '',
+    ].join('');
+    return `¡Hola! ${who}. ¿En qué te puedo ayudar? Podés consultarme precios y horarios, o pedir un turno.`;
   }
 
   private async reply(userId: string, content: string): Promise<void> {
@@ -262,6 +335,8 @@ export class WhatsAppMessageHandler {
       params;
 
     await this.conversationService.saveMessage(from, 'user', text);
+    // Queda abierta hasta que se agende, reprograme o cancele
+    this.pendingAppointments.set(from, Date.now());
 
     const missingDataReply =
       appointmentIntent.reply ||
@@ -304,12 +379,13 @@ export class WhatsAppMessageHandler {
           from,
           [
             `Tu cita fue agendada correctamente (${updatedClient.fullName || `${updatedClient.firstName} ${updatedClient.lastName}`.trim()}).`,
-            `Titulo: ${created.event.summary}`,
-            `Inicio: ${this.formatAppointmentStart(
+            `Servicio: ${created.event.summary}`,
+            `Fecha: ${this.formatAppointmentDate(
               created.event.start?.dateTime || appointmentIntent.startDateTime,
             )}`,
           ].join('\n'),
         );
+        this.pendingAppointments.delete(from);
         return;
       }
 
@@ -335,14 +411,13 @@ export class WhatsAppMessageHandler {
           from,
           [
             'Tu cita fue reprogramada correctamente.',
-            `Titulo: ${updated.event.summary}`,
-            `Nuevo inicio: ${updated.event.start?.dateTime || appointmentIntent.startDateTime}`,
-            `Nuevo fin: ${updated.event.end?.dateTime || appointmentIntent.endDateTime}`,
-            updated.event.htmlLink ? `Link: ${updated.event.htmlLink}` : null,
-          ]
-            .filter(Boolean)
-            .join('\n'),
+            `Servicio: ${updated.event.summary}`,
+            `Nueva fecha: ${this.formatAppointmentDate(
+              updated.event.start?.dateTime || appointmentIntent.startDateTime,
+            )}`,
+          ].join('\n'),
         );
+        this.pendingAppointments.delete(from);
         return;
       }
 
@@ -361,10 +436,14 @@ export class WhatsAppMessageHandler {
           from,
           [
             'Tu cita fue cancelada correctamente.',
-            `Titulo: ${cancelled.event.summary}`,
-            `Inicio original: ${cancelled.event.start?.dateTime || appointmentIntent.targetStartDateTime}`,
+            `Servicio: ${cancelled.event.summary}`,
+            `Fecha: ${this.formatAppointmentDate(
+              cancelled.event.start?.dateTime ||
+                appointmentIntent.targetStartDateTime,
+            )}`,
           ].join('\n'),
         );
+        this.pendingAppointments.delete(from);
         return;
       }
     } catch (error) {
@@ -389,12 +468,25 @@ export class WhatsAppMessageHandler {
     return 'No pude gestionar la cita automaticamente. Enviame mas detalle o contacta al equipo para revisarlo.';
   }
 
-  private formatAppointmentStart(dateTime: string): string {
-    return new Intl.DateTimeFormat('en-US', {
-      hour: 'numeric',
-      hour12: true,
-      timeZone: 'America/Argentina/Buenos_Aires',
-    }).format(new Date(dateTime));
+  /** Ej.: "sábado 24 de octubre, 10:30 hs" en la zona horaria del negocio. */
+  private formatAppointmentDate(dateTime: string): string {
+    const timeZone =
+      this.googleDocsService.getBusinessInfo().timeZone ||
+      'America/Argentina/Buenos_Aires';
+    const date = new Date(dateTime);
+    const day = new Intl.DateTimeFormat('es-AR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      timeZone,
+    }).format(date);
+    const time = new Intl.DateTimeFormat('es-AR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+      timeZone,
+    }).format(date);
+    return `${day.replace(',', '')}, ${time} hs`;
   }
 
   /**

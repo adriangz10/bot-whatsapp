@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { ConversationService } from '../conversation/conversation.service';
-import { RagService } from '../rag/rag.service';
+import { GoogleDocsService } from '../google-docs/google-docs.service';
 import {
   buildSystemPrompt,
   contentText,
@@ -15,7 +15,7 @@ export class OpenAIService {
   constructor(
     private readonly configService: ConfigService,
     private readonly conversationService: ConversationService,
-    private readonly ragService: RagService,
+    private readonly googleDocsService: GoogleDocsService,
   ) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
@@ -34,10 +34,12 @@ export class OpenAIService {
       ? await this.conversationService.getHistory(userId)
       : [];
 
-    // Obtener los 4 chunks más relevantes del documento usando RAG
-    const relevantChunks = await this.ragService.search(userPrompt, 4);
-
-    const systemPrompt = buildSystemPrompt(relevantChunks);
+    // Reglas del negocio desde el Google Doc (completo, o por RAG si es grande)
+    const context = await this.googleDocsService.getContextFor(userPrompt);
+    const systemPrompt = buildSystemPrompt(
+      context,
+      this.googleDocsService.getBusinessInfo(),
+    );
 
     // Mapear historial de Gemini al formato de OpenAI
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];

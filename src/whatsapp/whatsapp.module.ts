@@ -9,7 +9,6 @@ import { WebhookSignatureGuard } from './webhook-signature.guard';
 import { GeminiModule } from '../gemini/gemini.module';
 import { OpenAIModule } from '../openai/openai.module';
 import { ChatsModule } from '../chats/chats.module';
-import { GoogleSheetsModule } from '../google-sheets/google-sheets.module';
 import { ConversationModule } from '../conversation/conversation.module';
 import { GoogleCalendarModule } from '../google-calendar/google-calendar.module';
 import { ClientsModule } from '../clients/clients.module';
@@ -21,11 +20,10 @@ import { GoogleDocsModule } from '../google-docs/google-docs.module';
     GeminiModule,
     OpenAIModule,
     ChatsModule,
-    GoogleSheetsModule,
-    GoogleDocsModule,
     ConversationModule,
     forwardRef(() => GoogleCalendarModule),
     ClientsModule,
+    GoogleDocsModule,
   ],
   controllers: [WhatsAppController],
   providers: [

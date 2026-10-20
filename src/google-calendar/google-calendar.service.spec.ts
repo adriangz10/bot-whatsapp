@@ -1,6 +1,18 @@
 import { ConfigService } from '@nestjs/config';
 import { GoogleCalendarService } from './google-calendar.service';
 
+// parseDateTime es privado: se accede a través de un tipo mínimo en lugar de any
+const parseDateTime = (
+  service: GoogleCalendarService,
+  value: string,
+  field: string,
+) =>
+  (
+    service as unknown as {
+      parseDateTime(value: string, field: string): string;
+    }
+  ).parseDateTime(value, field);
+
 describe('GoogleCalendarService', () => {
   const createService = () =>
     new GoogleCalendarService(
@@ -23,7 +35,8 @@ describe('GoogleCalendarService', () => {
   it('accepts ISO datetimes with explicit UTC offset', () => {
     const service = createService();
 
-    const parsed = (service as any).parseDateTime(
+    const parsed = parseDateTime(
+      service,
       '2026-04-15T15:00:00-03:00',
       'startDateTime',
     );
@@ -34,7 +47,8 @@ describe('GoogleCalendarService', () => {
   it('accepts ISO datetimes in UTC', () => {
     const service = createService();
 
-    const parsed = (service as any).parseDateTime(
+    const parsed = parseDateTime(
+      service,
       '2026-04-15T18:00:00Z',
       'startDateTime',
     );
@@ -46,7 +60,7 @@ describe('GoogleCalendarService', () => {
     const service = createService();
 
     expect(() =>
-      (service as any).parseDateTime('2026-04-15T15:00:00', 'startDateTime'),
+      parseDateTime(service, '2026-04-15T15:00:00', 'startDateTime'),
     ).toThrow(
       'startDateTime must be a valid ISO date with timezone, for example 2026-04-15T15:00:00-03:00 or 2026-04-15T18:00:00Z',
     );

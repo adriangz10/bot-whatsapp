@@ -11,11 +11,14 @@ import { Chat } from '../../chats/entities/chat.entity';
 import { Appointment } from '../../google-calendar/entities/appointment.entity';
 
 @Entity('clients')
+@Index('idx_clients_userId', ['userId'], { unique: true })
+@Index('idx_clients_email', ['email'])
+@Index('idx_clients_documentId', ['documentId'])
+@Index('idx_clients_phone', ['phone'], { unique: true })
 export class Client {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Index({ unique: true })
   @Column({ type: 'varchar', length: 100, nullable: true })
   userId: string | null;
 
@@ -28,14 +31,12 @@ export class Client {
   @Column({ type: 'varchar', length: 150, nullable: true })
   fullName: string | null;
 
-  @Index()
   @Column({ type: 'varchar', length: 100, nullable: true })
   email: string | null;
 
   @Column({ type: 'varchar', length: 30, nullable: true })
   phone: string | null;
 
-  @Index()
   @Column({ type: 'varchar', length: 50, nullable: true })
   documentId: string | null;
 

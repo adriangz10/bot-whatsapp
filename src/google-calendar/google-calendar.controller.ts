@@ -1,10 +1,6 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { UseGuards } from '@nestjs/common';
+import { ApiKeyGuard } from '../common/guards/api-key.guard';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { GoogleCalendarService } from './google-calendar.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { ListAppointmentsQueryDto } from './dto/list-appointments-query.dto';
@@ -13,6 +9,7 @@ import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { ListLocalAppointmentsQueryDto } from './dto/list-local-appointments-query.dto';
 
+@UseGuards(ApiKeyGuard)
 @Controller('google-calendar')
 export class GoogleCalendarController {
   constructor(private readonly googleCalendarService: GoogleCalendarService) {}

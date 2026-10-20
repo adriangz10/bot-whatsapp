@@ -1,140 +1,111 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# BOT — Asistente de WhatsApp (Syntax Servicio Técnico)
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend NestJS que atiende clientes por WhatsApp Business: transcribe audios, agenda/reprograma/cancela
+citas en Google Calendar, responde con reglas (Google Sheets / precios en Google Docs) y, si nada aplica,
+con Gemini + RAG. Expone además una API REST y un WebSocket para un panel de administración.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Arquitectura
 
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ npm install
+```
+src/
+├── whatsapp/         webhook (controller delgado) + WhatsAppMessageHandler (orquestación)
+├── gemini/ openai/   LLM de chat / transcripción Whisper
+├── rag/              chunking + embeddings (persistidos en BD) + búsqueda por similitud
+├── conversation/     historial de mensajes
+├── chats/ clients/   CRUD del panel
+├── google-calendar/  citas + recordatorios (1 h y 20 min antes)
+├── google-docs/ google-sheets/   base de conocimiento y respuestas por palabra clave
+├── events/           WebSocket para el panel
+└── common/guards/    ApiKeyGuard
+migrations/           SQL versionado (npm run migrate)
 ```
 
-## Google Calendar module
+Flujo de `POST /whatsapp/webhook`: se valida la firma, se responde `200` de inmediato y el mensaje se
+procesa en segundo plano (cola por usuario, deduplicación persistente en la tabla `processed_messages`):
+audio → cliente/chat → intención de cita → palabra clave → precios → Gemini + RAG.
 
-The project now includes a `google-calendar` NestJS module for scheduling appointments.
+## Seguridad
 
-Required environment variables:
+- **Endpoints de administración** (`/chats`, `/clients`, `/google-*`, `/gemini`, `/openai`, `POST /whatsapp/send`):
+  requieren `ADMIN_API_KEY` en el header `x-api-key` o `Authorization: Bearer <clave>`.
+  Si la variable no está definida, se rechaza todo.
+- **WebSocket**: conectar con `ws://host/?token=<ADMIN_API_KEY>`.
+- **Webhook de Meta**: se valida `X-Hub-Signature-256` con `WHATSAPP_APP_SECRET`
+  (si no está definida se omite la validación y se registra una advertencia; **definirla en producción**).
+- **CORS**: solo los orígenes de `CORS_ORIGINS` (lista separada por comas).
+- `.env` no se versiona; usar `.env.example` como plantilla.
+
+## Variables de entorno
+
+Ver `.env.example`.
+
+## Base de datos y migraciones
+
+El esquema se gestiona con los SQL de `migrations/`:
+
+```bash
+npm run migrate                                   # aplica las pendientes
+npm run migrate -- --baseline 005_create_clients_and_relations.sql
+# ^ para una BD que ya tiene el esquema 001–005: las marca como aplicadas sin ejecutarlas
+```
+
+`synchronize` de TypeORM está desactivado; en desarrollo local puede activarse con `DB_SYNCHRONIZE=true`.
+
+Integridad (migración 007): `chats.tags` es `json`; FKs con `ON DELETE SET NULL` en `messages`, `chats` y `appointments`
+(incluido `appointments.chatId`); `CHECK (endDateTime > startDateTime)`; teléfono de cliente único; índices compuestos
+para historial, recordatorios y listado de chats. Borrar un chat elimina también su historial.
+Las reservas se serializan con un lock de MySQL (`GET_LOCK`) para evitar doble reserva.
+
+### Base de datos local de desarrollo
+
+Configura la conexión en `.env` (no versionado):
 
 ```env
-GOOGLE_CREDENTIALS={"client_email":"...","private_key":"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"}
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=<usuario>
+DB_PASS=<contraseña>
+DB_NAME=bot_db
+DB_TIMEZONE=Z
+```
+
+```bash
+mysql -u <usuario> -p -e "CREATE DATABASE bot_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+npm run migrate
+```
+
+`DB_TIMEZONE=Z` guarda las fechas en UTC (por defecto se usa la hora local del proceso).
+`MESSAGE_RETENTION_DAYS=N` borra mensajes de más de N días (desactivado por defecto).
+
+## Ejecutar
+
+```bash
+npm install
+npm run start:dev      # desarrollo
+npm run build && npm run start:prod
+npm test               # tests unitarios
+```
+
+## Google Calendar
+
+```env
+GOOGLE_CREDENTIALS={"client_email":"...","private_key":"..."}
 GOOGLE_CALENDAR_ID=your-calendar-id@group.calendar.google.com
 GOOGLE_CALENDAR_TIME_ZONE=America/Argentina/Buenos_Aires
 TZ=America/Argentina/Buenos_Aires
 ```
 
-Date handling rules:
+Las fechas siempre deben incluir zona horaria explícita (`2026-04-15T15:00:00-03:00`).
 
-- Always send datetimes with an explicit timezone.
-- Accepted examples: `2026-04-15T15:00:00-03:00` or `2026-04-15T18:00:00Z`
-- Invalid example: `2026-04-15T15:00:00`
-- `TZ=America/Argentina/Buenos_Aires` helps keep server-local formatting aligned with Argentina, but the API still requires an explicit timezone in every datetime input.
-
-Available endpoints:
-
-```bash
-GET  /google-calendar/appointments?timeMin=2026-04-15T10:00:00-03:00&timeMax=2026-04-15T15:00:00-03:00
-GET  /google-calendar/availability?startDateTime=2026-04-15T11:00:00-03:00&endDateTime=2026-04-15T12:00:00-03:00
+```
+GET  /google-calendar/appointments?timeMin=...&timeMax=...
+GET  /google-calendar/availability?startDateTime=...&endDateTime=...
 POST /google-calendar/appointments
+POST /google-calendar/appointments/reschedule
+POST /google-calendar/appointments/cancel
 ```
 
-Example body for `POST /google-calendar/appointments`:
+## Despliegue (Railway)
 
-```json
-{
-  "summary": "Cita con cliente",
-  "description": "Revisión de equipo",
-  "location": "Sucursal centro",
-  "startDateTime": "2026-04-15T11:00:00-03:00",
-  "endDateTime": "2026-04-15T12:00:00-03:00",
-  "attendeeEmails": ["cliente@example.com"],
-  "timeZone": "America/Argentina/Buenos_Aires"
-}
-```
-
-## Compile and run the project
-
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
-```
-
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+`railway.toml` define build con Nixpacks, healthcheck en `/` y reinicio ante fallos. Ejecutar
+`npm run migrate` en cada despliegue antes de arrancar.

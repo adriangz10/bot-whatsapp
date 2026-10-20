@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { isDuplicateEntry } from '../common/db-errors';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Client } from './entities/client.entity';
@@ -49,9 +54,23 @@ export class ClientsService {
     const client = this.clientRepository.create(
       this.normalizeClientPayload(createClientDto),
     );
-    const savedClient = await this.clientRepository.save(client);
+    const savedClient = await this.saveClient(client);
     await this.syncRelations(savedClient);
     return this.findOne(savedClient.id);
+  }
+
+  /** Traduce la violación de unicidad (userId/teléfono repetido) en un 409. */
+  private async saveClient(client: Client): Promise<Client> {
+    try {
+      return await this.clientRepository.save(client);
+    } catch (error) {
+      if (isDuplicateEntry(error)) {
+        throw new ConflictException(
+          'Ya existe un cliente con ese userId o teléfono',
+        );
+      }
+      throw error;
+    }
   }
 
   async update(id: number, updateClientDto: UpdateClientDto): Promise<Client> {
@@ -65,7 +84,7 @@ export class ClientsService {
       existing,
       this.normalizeClientPayload(updateClientDto),
     );
-    const savedClient = await this.clientRepository.save(merged);
+    const savedClient = await this.saveClient(merged);
     await this.syncRelations(savedClient);
     return this.findOne(savedClient.id);
   }
@@ -74,17 +93,24 @@ export class ClientsService {
     userId: string,
     payload: UpdateClientDto = {},
   ): Promise<Client> {
-    const existing = await this.findByUserId(userId);
+    let existing = await this.findByUserId(userId);
     const normalizedPayload = this.normalizeClientPayload({
       ...payload,
       userId,
     });
 
     if (!existing) {
-      const created = this.clientRepository.create(normalizedPayload);
-      const saved = await this.clientRepository.save(created);
-      await this.syncRelations(saved);
-      return this.findOne(saved.id);
+      try {
+        const created = this.clientRepository.create(normalizedPayload);
+        const saved = await this.clientRepository.save(created);
+        await this.syncRelations(saved);
+        return this.findOne(saved.id);
+      } catch (error) {
+        // Otro proceso lo creó entre el find y el insert: seguir como actualización
+        if (!isDuplicateEntry(error)) throw error;
+        existing = await this.findByUserId(userId);
+        if (!existing) throw error;
+      }
     }
 
     const merged = this.clientRepository.merge(existing, {
@@ -102,7 +128,7 @@ export class ClientsService {
       postalCode: normalizedPayload.postalCode ?? existing.postalCode,
       notes: normalizedPayload.notes ?? existing.notes,
     });
-    const saved = await this.clientRepository.save(merged);
+    const saved = await this.saveClient(merged);
     await this.syncRelations(saved);
     return this.findOne(saved.id);
   }

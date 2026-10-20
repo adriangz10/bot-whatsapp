@@ -1,1 +1,13 @@
 node_modules
+dist
+coverage
+.env
+.env.*
+!.env.example
+db.db
+conversations/
+# Claves de service account de Google
+asistente-ia-*.json
+*-service-account*.json
+asistentebot-*.json
+precise-bank-*.json

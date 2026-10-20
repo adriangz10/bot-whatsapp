@@ -7,11 +7,8 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, LessThanOrEqual, MoreThan, Repository } from 'typeorm';
-import {
-  Appointment,
-  AppointmentStatus,
-} from './entities/appointment.entity';
+import { IsNull, MoreThan, Repository } from 'typeorm';
+import { Appointment, AppointmentStatus } from './entities/appointment.entity';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { ConversationService } from '../conversation/conversation.service';
 
@@ -105,6 +102,15 @@ export class GoogleCalendarReminderService
         `Inicio: ${startText}`,
       ].join('\n');
 
+      // Reclamo atómico: solo una réplica logra pasar el campo de NULL a una fecha
+      const claim = await this.appointmentRepository.update(
+        { id: appointment.id, [reminderField]: IsNull() },
+        { [reminderField]: new Date() },
+      );
+      if (!claim.affected) {
+        continue;
+      }
+
       try {
         await this.whatsappService.sendMessage(appointment.userId, message);
         await this.conversationService.saveMessage(
@@ -112,10 +118,12 @@ export class GoogleCalendarReminderService
           'model',
           message,
         );
-
-        appointment[reminderField] = new Date();
-        await this.appointmentRepository.save(appointment);
       } catch (error) {
+        // Liberar el reclamo para reintentar en el próximo ciclo
+        await this.appointmentRepository.update(
+          { id: appointment.id },
+          { [reminderField]: null },
+        );
         this.logger.error(
           `Failed sending reminder for appointment ${appointment.id}: ${error instanceof Error ? error.message : error}`,
         );

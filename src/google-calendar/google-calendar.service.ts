@@ -9,17 +9,25 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { calendar_v3 } from 'googleapis';
 import { Repository } from 'typeorm';
+import {
+  GoogleCredentials,
+  parseGoogleCredentials,
+} from '../common/google-credentials';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { ListAppointmentsQueryDto } from './dto/list-appointments-query.dto';
 import { ListLocalAppointmentsQueryDto } from './dto/list-local-appointments-query.dto';
-import {
-  Appointment,
-  AppointmentStatus,
-} from './entities/appointment.entity';
+import { Appointment, AppointmentStatus } from './entities/appointment.entity';
 
-type GoogleCredentials = {
-  client_email: string;
-  private_key: string;
+type RescheduleParams = {
+  targetStartDateTime: string;
+  targetEndDateTime?: string | null;
+  summary?: string | null;
+  userId?: string | null;
+  chatId?: number | null;
+  clientId?: number | null;
+  contactName?: string | null;
+  newStartDateTime: string;
+  newEndDateTime: string;
 };
 
 @Injectable()
@@ -71,18 +79,15 @@ export class GoogleCalendarService implements OnModuleInit {
   }
 
   private getCredentials(): GoogleCredentials | null {
-    const credentialsJson = this.configService.get<string>('GOOGLE_CREDENTIALS');
+    const credentialsJson =
+      this.configService.get<string>('GOOGLE_CREDENTIALS');
 
     if (!credentialsJson) {
       return null;
     }
 
     try {
-      const credentials = JSON.parse(credentialsJson);
-      return {
-        client_email: credentials.client_email,
-        private_key: credentials.private_key.replace(/\\n/g, '\n'),
-      };
+      return parseGoogleCredentials(credentialsJson);
     } catch (error) {
       this.logger.error('Failed to parse GOOGLE_CREDENTIALS:', error);
       return null;
@@ -104,9 +109,7 @@ export class GoogleCalendarService implements OnModuleInit {
       throw new BadRequestException(`${fieldName} is required`);
     }
 
-    if (
-      !GoogleCalendarService.ISO_DATE_TIME_WITH_TIME_ZONE_REGEX.test(value)
-    ) {
+    if (!GoogleCalendarService.ISO_DATE_TIME_WITH_TIME_ZONE_REGEX.test(value)) {
       throw new BadRequestException(
         `${fieldName} must be a valid ISO date with timezone, for example 2026-04-15T15:00:00-03:00 or 2026-04-15T18:00:00Z`,
       );
@@ -166,7 +169,9 @@ export class GoogleCalendarService implements OnModuleInit {
     record.chatId =
       params.chatId !== undefined ? params.chatId : (record.chatId ?? null);
     record.clientId =
-      params.clientId !== undefined ? params.clientId : (record.clientId ?? null);
+      params.clientId !== undefined
+        ? params.clientId
+        : (record.clientId ?? null);
     record.contactName =
       params.contactName !== undefined
         ? params.contactName
@@ -268,7 +273,41 @@ export class GoogleCalendarService implements OnModuleInit {
     };
   }
 
+  /**
+   * Serializa las altas/reprogramaciones entre procesos con un lock de MySQL, para que dos
+   * clientes no reserven el mismo horario entre el chequeo de disponibilidad y el insert.
+   */
+  private async withBookingLock<T>(fn: () => Promise<T>): Promise<T> {
+    const lockName = 'bot:appointments';
+    const runner =
+      this.appointmentRepository.manager.connection.createQueryRunner();
+    await runner.connect();
+
+    try {
+      const [row] = (await runner.query('SELECT GET_LOCK(?, 15) AS acquired', [
+        lockName,
+      ])) as Array<{ acquired: number | string }>;
+      if (Number(row?.acquired) !== 1) {
+        throw new ServiceUnavailableException('Booking is busy, try again');
+      }
+
+      try {
+        return await fn();
+      } finally {
+        await runner
+          .query('SELECT RELEASE_LOCK(?)', [lockName])
+          .catch(() => undefined);
+      }
+    } finally {
+      await runner.release();
+    }
+  }
+
   async createAppointment(body: CreateAppointmentDto) {
+    return this.withBookingLock(() => this.createAppointmentUnlocked(body));
+  }
+
+  private async createAppointmentUnlocked(body: CreateAppointmentDto) {
     const client = this.ensureClient();
     const startDateTime = this.parseDateTime(
       body.startDateTime,
@@ -366,7 +405,9 @@ export class GoogleCalendarService implements OnModuleInit {
 
     const targetEnd = params.targetEndDateTime
       ? this.parseDateTime(params.targetEndDateTime, 'targetEndDateTime')
-      : new Date(new Date(targetStart).getTime() + 60 * 60 * 1000).toISOString();
+      : new Date(
+          new Date(targetStart).getTime() + 60 * 60 * 1000,
+        ).toISOString();
 
     const rangeStart = new Date(
       new Date(targetStart).getTime() - 12 * 60 * 60 * 1000,
@@ -412,23 +453,21 @@ export class GoogleCalendarService implements OnModuleInit {
     }
 
     if (candidates.length > 1) {
-      throw new BadRequestException('Multiple appointments matched the request');
+      throw new BadRequestException(
+        'Multiple appointments matched the request',
+      );
     }
 
     return candidates[0];
   }
 
-  async rescheduleAppointment(params: {
-    targetStartDateTime: string;
-    targetEndDateTime?: string | null;
-    summary?: string | null;
-    userId?: string | null;
-    chatId?: number | null;
-    clientId?: number | null;
-    contactName?: string | null;
-    newStartDateTime: string;
-    newEndDateTime: string;
-  }) {
+  async rescheduleAppointment(params: RescheduleParams) {
+    return this.withBookingLock(() =>
+      this.rescheduleAppointmentUnlocked(params),
+    );
+  }
+
+  private async rescheduleAppointmentUnlocked(params: RescheduleParams) {
     const client = this.ensureClient();
     const matchingEvent = await this.findMatchingEvent(params);
     const newStartDateTime = this.parseDateTime(
@@ -446,7 +485,10 @@ export class GoogleCalendarService implements OnModuleInit {
       );
     }
 
-    const conflicts = await this.checkAvailability(newStartDateTime, newEndDateTime);
+    const conflicts = await this.checkAvailability(
+      newStartDateTime,
+      newEndDateTime,
+    );
     const actualConflicts = conflicts.conflicts.filter(
       (event) => event.id !== matchingEvent.id,
     );

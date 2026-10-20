@@ -2,6 +2,11 @@ import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { sheets_v4 } from 'googleapis/build/src/apis/sheets';
 import { RagService } from '../rag/rag.service';
+import {
+  errorMessage,
+  GoogleCredentials,
+  parseGoogleCredentials,
+} from '../common/google-credentials';
 
 @Injectable()
 export class GoogleSheetsService implements OnModuleInit {
@@ -15,7 +20,8 @@ export class GoogleSheetsService implements OnModuleInit {
     private readonly configService: ConfigService,
     private readonly ragService: RagService,
   ) {
-    this.spreadsheetId = this.configService.get<string>('GOOGLE_SHEETS_SPREADSHEET_ID') || '';
+    this.spreadsheetId =
+      this.configService.get<string>('GOOGLE_SHEETS_SPREADSHEET_ID') || '';
   }
 
   async onModuleInit() {
@@ -27,13 +33,17 @@ export class GoogleSheetsService implements OnModuleInit {
 
   private async initializeClient() {
     if (!this.spreadsheetId) {
-      this.logger.warn('GOOGLE_SHEETS_SPREADSHEET_ID not configured. Sheet data will be empty.');
+      this.logger.warn(
+        'GOOGLE_SHEETS_SPREADSHEET_ID not configured. Sheet data will be empty.',
+      );
       return;
     }
 
     const credentials = this.getCredentials();
     if (!credentials) {
-      this.logger.warn('Google credentials not configured. Set GOOGLE_CREDENTIALS env var.');
+      this.logger.warn(
+        'Google credentials not configured. Set GOOGLE_CREDENTIALS env var.',
+      );
       return;
     }
 
@@ -51,8 +61,9 @@ export class GoogleSheetsService implements OnModuleInit {
     }
   }
 
-  private getCredentials(): { client_email: string; private_key: string } | null {
-    const credentialsJson = this.configService.get<string>('GOOGLE_CREDENTIALS');
+  private getCredentials(): GoogleCredentials | null {
+    const credentialsJson =
+      this.configService.get<string>('GOOGLE_CREDENTIALS');
 
     if (!credentialsJson) {
       this.logger.warn('GOOGLE_CREDENTIALS not configured.');
@@ -60,11 +71,7 @@ export class GoogleSheetsService implements OnModuleInit {
     }
 
     try {
-      const credentials = JSON.parse(credentialsJson);
-      return {
-        client_email: credentials.client_email,
-        private_key: credentials.private_key.replace(/\\n/g, '\n'),
-      };
+      return parseGoogleCredentials(credentialsJson);
     } catch (error) {
       this.logger.error('Failed to parse GOOGLE_CREDENTIALS:', error);
       return null;
@@ -83,7 +90,8 @@ export class GoogleSheetsService implements OnModuleInit {
         includeGridData: false,
       });
 
-      const firstSheetTitle = metadataResponse.data.sheets?.[0]?.properties?.title;
+      const firstSheetTitle =
+        metadataResponse.data.sheets?.[0]?.properties?.title;
       if (!firstSheetTitle) {
         this.logger.warn('No sheets found in the spreadsheet');
         return;
@@ -103,8 +111,8 @@ export class GoogleSheetsService implements OnModuleInit {
         return;
       }
 
-      const headers = values[0];
-      const rows = values.slice(1);
+      const headers = values[0] as string[];
+      const rows = values.slice(1) as string[][];
 
       // Convertir filas a objetos { header: value }
       this.sheetData = rows.map((row) => {
@@ -117,16 +125,22 @@ export class GoogleSheetsService implements OnModuleInit {
 
       // Convertir a texto para RAG
       this.sheetText = this.formatSheetText(firstSheetTitle, headers, rows);
-      this.logger.log(`Sheet loaded: ${this.sheetData.length} rows, ${this.sheetText.length} characters`);
+      this.logger.log(
+        `Sheet loaded: ${this.sheetData.length} rows, ${this.sheetText.length} characters`,
+      );
 
       // Indexar en el sistema RAG
       await this.ragService.indexDocument(this.sheetText, 'google-sheets');
     } catch (error) {
-      this.logger.error('Failed to load Google Sheet:', error?.message || error);
+      this.logger.error('Failed to load Google Sheet:', errorMessage(error));
     }
   }
 
-  private formatSheetText(sheetTitle: string, headers: string[], rows: string[][]): string {
+  private formatSheetText(
+    sheetTitle: string,
+    headers: string[],
+    rows: string[][],
+  ): string {
     const lines: string[] = [];
     lines.push(`Spreadsheet data (${sheetTitle}, ${rows.length} rows):`);
 
@@ -154,7 +168,9 @@ export class GoogleSheetsService implements OnModuleInit {
     const messageLower = userMessage.toLowerCase().trim();
 
     for (const row of this.sheetData) {
-      const keyword = (row['Keyword'] || row['keyword'] || '').toLowerCase().trim();
+      const keyword = (row['Keyword'] || row['keyword'] || '')
+        .toLowerCase()
+        .trim();
       if (keyword && messageLower.includes(keyword)) {
         return {
           answer: row['Answer'] || row['answer'] || '',

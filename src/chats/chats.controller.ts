@@ -1,3 +1,5 @@
+import { UseGuards } from '@nestjs/common';
+import { ApiKeyGuard } from '../common/guards/api-key.guard';
 import {
   Controller,
   Get,
@@ -13,6 +15,7 @@ import { ChatsService, ChatFilters, PaginationParams } from './chats.service';
 import { UpdateChatDto, CreateChatDto } from './dto/chat.dto';
 import { ChatStatus, ChatPriority } from './entities/chat.entity';
 
+@UseGuards(ApiKeyGuard)
 @Controller('chats')
 export class ChatsController {
   constructor(private readonly chatsService: ChatsService) {}
@@ -72,7 +75,10 @@ export class ChatsController {
 
   // Actualizar chat (estado, prioridad, tags, notas)
   @Put(':id')
-  async update(@Param('id', ParseIntPipe) id: number, @Body() updateChatDto: UpdateChatDto) {
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateChatDto: UpdateChatDto,
+  ) {
     return this.chatsService.update(id, updateChatDto);
   }
 
@@ -103,13 +109,19 @@ export class ChatsController {
 
   // Agregar tags
   @Put(':id/tags')
-  async updateTags(@Param('id', ParseIntPipe) id: number, @Body('tags') tags: string[]) {
+  async updateTags(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('tags') tags: string[],
+  ) {
     return this.chatsService.update(id, { tags });
   }
 
   // Actualizar notas
   @Put(':id/notes')
-  async updateNotes(@Param('id', ParseIntPipe) id: number, @Body('notes') notes: string) {
+  async updateNotes(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('notes') notes: string,
+  ) {
     return this.chatsService.update(id, { notes });
   }
 

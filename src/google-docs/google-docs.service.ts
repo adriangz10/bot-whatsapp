@@ -2,6 +2,11 @@ import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { docs_v1 } from 'googleapis/build/src/apis/docs';
 import { RagService } from '../rag/rag.service';
+import {
+  errorMessage,
+  GoogleCredentials,
+  parseGoogleCredentials,
+} from '../common/google-credentials';
 
 interface ParsedPriceEntry {
   service: string;
@@ -22,7 +27,8 @@ export class GoogleDocsService implements OnModuleInit {
     private readonly configService: ConfigService,
     private readonly ragService: RagService,
   ) {
-    this.documentId = this.configService.get<string>('GOOGLE_DOCS_DOCUMENT_ID') || '';
+    this.documentId =
+      this.configService.get<string>('GOOGLE_DOCS_DOCUMENT_ID') || '';
   }
 
   async onModuleInit() {
@@ -34,13 +40,17 @@ export class GoogleDocsService implements OnModuleInit {
 
   private async initializeClient() {
     if (!this.documentId) {
-      this.logger.warn('GOOGLE_DOCS_DOCUMENT_ID not configured. Context will be empty.');
+      this.logger.warn(
+        'GOOGLE_DOCS_DOCUMENT_ID not configured. Context will be empty.',
+      );
       return;
     }
 
     const credentials = this.getCredentials();
     if (!credentials) {
-      this.logger.warn('Google credentials not configured. Set GOOGLE_CREDENTIALS env var.');
+      this.logger.warn(
+        'Google credentials not configured. Set GOOGLE_CREDENTIALS env var.',
+      );
       return;
     }
 
@@ -58,8 +68,9 @@ export class GoogleDocsService implements OnModuleInit {
     }
   }
 
-  private getCredentials(): { client_email: string; private_key: string } | null {
-    const credentialsJson = this.configService.get<string>('GOOGLE_CREDENTIALS');
+  private getCredentials(): GoogleCredentials | null {
+    const credentialsJson =
+      this.configService.get<string>('GOOGLE_CREDENTIALS');
 
     if (!credentialsJson) {
       this.logger.warn('GOOGLE_CREDENTIALS not configured.');
@@ -67,11 +78,7 @@ export class GoogleDocsService implements OnModuleInit {
     }
 
     try {
-      const credentials = JSON.parse(credentialsJson);
-      return {
-        client_email: credentials.client_email,
-        private_key: credentials.private_key.replace(/\\n/g, '\n'),
-      };
+      return parseGoogleCredentials(credentialsJson);
     } catch (error) {
       this.logger.error('Failed to parse GOOGLE_CREDENTIALS:', error);
       return null;
@@ -84,20 +91,26 @@ export class GoogleDocsService implements OnModuleInit {
     }
 
     try {
-      const response = await this.docsClient.documents.get({ documentId: this.documentId });
+      const response = await this.docsClient.documents.get({
+        documentId: this.documentId,
+      });
       this.documentContent = this.extractText(response.data);
       this.priceEntries = this.parsePriceEntries(this.documentContent);
-      this.logger.log(`Document loaded: ${this.documentContent.length} characters`);
-      this.logger.log(`Parsed ${this.priceEntries.length} price entries from Google Doc`);
+      this.logger.log(
+        `Document loaded: ${this.documentContent.length} characters`,
+      );
+      this.logger.log(
+        `Parsed ${this.priceEntries.length} price entries from Google Doc`,
+      );
 
       // Indexar el documento en el sistema RAG
       await this.ragService.indexDocument(this.documentContent, 'google-docs');
     } catch (error) {
-      this.logger.error('Failed to load Google Doc:', error?.message || error);
+      this.logger.error('Failed to load Google Doc:', errorMessage(error));
     }
   }
 
-  private extractText(document: any): string {
+  private extractText(document: docs_v1.Schema$Document): string {
     const content = document.body?.content || [];
     let text = '';
 
@@ -167,7 +180,10 @@ export class GoogleDocsService implements OnModuleInit {
         continue;
       }
 
-      const service = line.replace(/\$\s*\d{1,3}(?:\.\d{3})*(?:,\d{2})?/g, ' ').replace(/\s{2,}/g, ' ').trim();
+      const service = line
+        .replace(/\$\s*\d{1,3}(?:\.\d{3})*(?:,\d{2})?/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
       if (!service) {
         continue;
       }
@@ -209,12 +225,17 @@ export class GoogleDocsService implements OnModuleInit {
     return triggers.some((trigger) => normalizedMessage.includes(trigger));
   }
 
-  private findBestPriceMatch(normalizedMessage: string): ParsedPriceEntry | null {
+  private findBestPriceMatch(
+    normalizedMessage: string,
+  ): ParsedPriceEntry | null {
     let bestMatch: ParsedPriceEntry | null = null;
     let bestScore = 0;
 
     for (const entry of this.priceEntries) {
-      const score = this.scorePriceEntry(normalizedMessage, entry.normalizedService);
+      const score = this.scorePriceEntry(
+        normalizedMessage,
+        entry.normalizedService,
+      );
       if (score > bestScore) {
         bestScore = score;
         bestMatch = entry;
@@ -224,9 +245,16 @@ export class GoogleDocsService implements OnModuleInit {
     return bestScore >= 2 ? bestMatch : null;
   }
 
-  private scorePriceEntry(normalizedMessage: string, normalizedService: string): number {
-    const messageTokens = new Set(normalizedMessage.split(' ').filter((token) => token.length > 2));
-    const serviceTokens = normalizedService.split(' ').filter((token) => token.length > 2);
+  private scorePriceEntry(
+    normalizedMessage: string,
+    normalizedService: string,
+  ): number {
+    const messageTokens = new Set(
+      normalizedMessage.split(' ').filter((token) => token.length > 2),
+    );
+    const serviceTokens = normalizedService
+      .split(' ')
+      .filter((token) => token.length > 2);
     let score = 0;
 
     for (const token of serviceTokens) {
@@ -236,7 +264,10 @@ export class GoogleDocsService implements OnModuleInit {
     }
 
     const synonyms: Array<{ terms: string[]; bonus: number }> = [
-      { terms: ['mantenimiento general', 'limpieza interna', 'pasta termica'], bonus: 3 },
+      {
+        terms: ['mantenimiento general', 'limpieza interna', 'pasta termica'],
+        bonus: 3,
+      },
       { terms: ['formateo', 'instalacion windows'], bonus: 2 },
       { terms: ['backup', 'respaldo'], bonus: 2 },
       { terms: ['virus', 'optimizacion'], bonus: 2 },
@@ -248,8 +279,12 @@ export class GoogleDocsService implements OnModuleInit {
     ];
 
     for (const synonym of synonyms) {
-      const messageHasSynonym = synonym.terms.some((term) => normalizedMessage.includes(term));
-      const serviceHasSynonym = synonym.terms.some((term) => normalizedService.includes(term));
+      const messageHasSynonym = synonym.terms.some((term) =>
+        normalizedMessage.includes(term),
+      );
+      const serviceHasSynonym = synonym.terms.some((term) =>
+        normalizedService.includes(term),
+      );
 
       if (messageHasSynonym && serviceHasSynonym) {
         score += synonym.bonus;
@@ -279,7 +314,10 @@ export class GoogleDocsService implements OnModuleInit {
     return 'both';
   }
 
-  private detectSinglePrice(normalizedMessage: string, entry: ParsedPriceEntry): string | null {
+  private detectSinglePrice(
+    normalizedMessage: string,
+    entry: ParsedPriceEntry,
+  ): string | null {
     if (entry.prices.length === 0) {
       return null;
     }
@@ -289,7 +327,15 @@ export class GoogleDocsService implements OnModuleInit {
       normalizedMessage.includes('laptop') ||
       normalizedMessage.includes('portatil')
     ) {
-      return this.getPriceByPreferredLabels(entry, ['notebook', 'laptop', 'portatil']) || entry.prices[1] || entry.prices[0];
+      return (
+        this.getPriceByPreferredLabels(entry, [
+          'notebook',
+          'laptop',
+          'portatil',
+        ]) ||
+        entry.prices[1] ||
+        entry.prices[0]
+      );
     }
 
     if (
@@ -297,7 +343,13 @@ export class GoogleDocsService implements OnModuleInit {
       normalizedMessage.includes('computadora') ||
       normalizedMessage.includes('escritorio')
     ) {
-      return this.getPriceByPreferredLabels(entry, ['pc', 'computadora', 'escritorio']) || entry.prices[0];
+      return (
+        this.getPriceByPreferredLabels(entry, [
+          'pc',
+          'computadora',
+          'escritorio',
+        ]) || entry.prices[0]
+      );
     }
 
     return null;
@@ -317,12 +369,20 @@ export class GoogleDocsService implements OnModuleInit {
 
       const normalizedFragment = this.normalizeText(fragment);
 
-      if (normalizedFragment.includes('notebook') || normalizedFragment.includes('laptop') || normalizedFragment.includes('portatil')) {
+      if (
+        normalizedFragment.includes('notebook') ||
+        normalizedFragment.includes('laptop') ||
+        normalizedFragment.includes('portatil')
+      ) {
         explicitLabels.push('notebook');
         continue;
       }
 
-      if (normalizedFragment.includes('pc') || normalizedFragment.includes('computadora') || normalizedFragment.includes('escritorio')) {
+      if (
+        normalizedFragment.includes('pc') ||
+        normalizedFragment.includes('computadora') ||
+        normalizedFragment.includes('escritorio')
+      ) {
         explicitLabels.push('pc');
         continue;
       }
@@ -338,10 +398,16 @@ export class GoogleDocsService implements OnModuleInit {
       return ['pc', 'notebook'];
     }
 
-    return Array.from({ length: priceCount }, (_, index) => `precio ${index + 1}`);
+    return Array.from(
+      { length: priceCount },
+      (_, index) => `precio ${index + 1}`,
+    );
   }
 
-  private getPriceByPreferredLabels(entry: ParsedPriceEntry, preferredLabels: string[]): string | null {
+  private getPriceByPreferredLabels(
+    entry: ParsedPriceEntry,
+    preferredLabels: string[],
+  ): string | null {
     const labelIndex = entry.labels.findIndex((label) =>
       preferredLabels.some((preferredLabel) => label.includes(preferredLabel)),
     );
@@ -355,7 +421,10 @@ export class GoogleDocsService implements OnModuleInit {
 
   private formatLabeledPrices(entry: ParsedPriceEntry): string {
     return entry.prices
-      .map((price, index) => `${price} para ${this.humanizePriceLabel(entry.labels[index] || `precio ${index + 1}`)}`)
+      .map(
+        (price, index) =>
+          `${price} para ${this.humanizePriceLabel(entry.labels[index] || `precio ${index + 1}`)}`,
+      )
       .join(' y ');
   }
 

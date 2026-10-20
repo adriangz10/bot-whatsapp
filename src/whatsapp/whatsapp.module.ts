@@ -1,6 +1,11 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { WhatsAppService } from './whatsapp.service';
 import { WhatsAppController } from './whatsapp.controller';
+import { WhatsAppMessageHandler } from './whatsapp-message-handler.service';
+import { ProcessedMessageService } from './processed-message.service';
+import { ProcessedMessage } from './entities/processed-message.entity';
+import { WebhookSignatureGuard } from './webhook-signature.guard';
 import { GeminiModule } from '../gemini/gemini.module';
 import { OpenAIModule } from '../openai/openai.module';
 import { ChatsModule } from '../chats/chats.module';
@@ -11,9 +16,24 @@ import { ClientsModule } from '../clients/clients.module';
 import { GoogleDocsModule } from '../google-docs/google-docs.module';
 
 @Module({
-  imports: [GeminiModule, OpenAIModule, ChatsModule, GoogleSheetsModule, GoogleDocsModule, ConversationModule, forwardRef(() => GoogleCalendarModule), ClientsModule],
+  imports: [
+    TypeOrmModule.forFeature([ProcessedMessage]),
+    GeminiModule,
+    OpenAIModule,
+    ChatsModule,
+    GoogleSheetsModule,
+    GoogleDocsModule,
+    ConversationModule,
+    forwardRef(() => GoogleCalendarModule),
+    ClientsModule,
+  ],
   controllers: [WhatsAppController],
-  providers: [WhatsAppService],
+  providers: [
+    WhatsAppService,
+    WhatsAppMessageHandler,
+    ProcessedMessageService,
+    WebhookSignatureGuard,
+  ],
   exports: [WhatsAppService],
 })
 export class WhatsAppModule {}

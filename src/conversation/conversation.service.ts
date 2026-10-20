@@ -74,7 +74,7 @@ export class ConversationService {
     const result = await this.messageRepository
       .createQueryBuilder('message')
       .select('DISTINCT message.userId', 'userId')
-      .getRawMany();
+      .getRawMany<{ userId: string }>();
 
     return result.map((r) => r.userId);
   }

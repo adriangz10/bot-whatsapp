@@ -1,3 +1,5 @@
+import { UseGuards } from '@nestjs/common';
+import { ApiKeyGuard } from '../common/guards/api-key.guard';
 import {
   Body,
   Controller,
@@ -11,6 +13,7 @@ import {
 import { ClientsService } from './clients.service';
 import { CreateClientDto, UpdateClientDto } from './dto/client.dto';
 
+@UseGuards(ApiKeyGuard)
 @Controller('clients')
 export class ClientsController {
   constructor(private readonly clientsService: ClientsService) {}

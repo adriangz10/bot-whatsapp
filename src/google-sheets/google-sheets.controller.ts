@@ -1,6 +1,9 @@
+import { UseGuards } from '@nestjs/common';
+import { ApiKeyGuard } from '../common/guards/api-key.guard';
 import { Controller, Get } from '@nestjs/common';
 import { GoogleSheetsService } from './google-sheets.service';
 
+@UseGuards(ApiKeyGuard)
 @Controller('google-sheets')
 export class GoogleSheetsController {
   constructor(private readonly googleSheetsService: GoogleSheetsService) {}

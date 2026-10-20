@@ -27,11 +27,16 @@ export enum ChatPriority {
 }
 
 @Entity('chats')
+@Index('idx_userId', ['userId'], { unique: true })
+@Index('idx_priority', ['priority'])
+@Index('idx_createdAt', ['createdAt'])
+@Index('idx_updatedAt', ['updatedAt'])
+@Index('idx_chats_clientId', ['clientId'])
+@Index('idx_chats_status_lastMessageAt', ['status', 'lastMessageAt'])
 export class Chat {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Index({ unique: true })
   @Column({ length: 100 })
   userId: string;
 
@@ -61,18 +66,21 @@ export class Chat {
   })
   priority: ChatPriority;
 
-  @Column({ type: 'simple-json', nullable: true })
+  // json nativo: ChatsService filtra con JSON_OVERLAPS, que no funciona sobre una columna text
+  @Column({ type: 'json', nullable: true })
   tags: string[];
 
   @Column({ type: 'text', nullable: true })
   notes: string;
 
-  @Index()
   @Column({ type: 'int', nullable: true })
   clientId: number | null;
 
-  @ManyToOne(() => Client, (client) => client.chats, { nullable: true })
-  @JoinColumn({ name: 'clientId' })
+  @ManyToOne(() => Client, (client) => client.chats, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'clientId', foreignKeyConstraintName: 'fk_chats_client' })
   client: Client | null;
 
   @Column({ type: 'int', default: 0 })

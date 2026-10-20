@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { createHash } from 'crypto';
+import { RagChunk } from './entities/rag-chunk.entity';
 
 interface VectorEntry {
   chunk: string;
@@ -15,7 +19,11 @@ export class RagService {
   private readonly genAI: GoogleGenerativeAI;
   private vectors: VectorEntry[] = [];
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    @InjectRepository(RagChunk)
+    private readonly chunkRepository: Repository<RagChunk>,
+  ) {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
       throw new Error('GEMINI_API_KEY no está configurada');
@@ -27,7 +35,11 @@ export class RagService {
    * Divide un texto en chunks de `chunkSize` caracteres con `overlap` caracteres de solapamiento.
    * No corta palabras a la mitad: retrocede hasta el espacio más cercano.
    */
-  chunkText(text: string, chunkSize: number = 500, overlap: number = 50): string[] {
+  chunkText(
+    text: string,
+    chunkSize: number = 500,
+    overlap: number = 50,
+  ): string[] {
     const chunks: string[] = [];
     let start = 0;
 
@@ -60,7 +72,9 @@ export class RagService {
    * Genera embeddings individuales para cada texto usando text-embedding-004.
    */
   private async embedTexts(texts: string[]): Promise<number[][]> {
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
+    const model = this.genAI.getGenerativeModel({
+      model: 'gemini-embedding-001',
+    });
     const embeddings: number[][] = [];
 
     for (const text of texts) {
@@ -75,7 +89,9 @@ export class RagService {
    * Genera el embedding para un texto individual (la query del usuario).
    */
   private async embedQuery(text: string): Promise<number[]> {
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
+    const model = this.genAI.getGenerativeModel({
+      model: 'gemini-embedding-001',
+    });
     const result = await model.embedContent(text);
     return result.embedding.values;
   }
@@ -101,8 +117,10 @@ export class RagService {
   }
 
   /**
-   * Indexa un documento: lo divide en chunks, genera embeddings y los almacena en memoria.
-   * Soporta múltiples fuentes: cada llamada agrega vectores sin sobrescribir los existentes.
+   * Indexa un documento: lo divide en chunks y genera embeddings.
+   * Los embeddings se persisten en BD con el hash del documento: si el contenido no cambió
+   * se cargan desde ahí en lugar de volver a llamar a la API de embeddings.
+   * Reindexar una fuente reemplaza sus vectores anteriores (no se duplican).
    */
   async indexDocument(text: string, source: string = 'default'): Promise<void> {
     if (!text || text.trim().length === 0) {
@@ -110,22 +128,98 @@ export class RagService {
       return;
     }
 
+    const contentHash = createHash('sha256').update(text).digest('hex');
     const chunks = this.chunkText(text, 500, 50);
-    this.logger.log(`[${source}] Documento dividido en ${chunks.length} chunks`);
+    this.logger.log(
+      `[${source}] Documento dividido en ${chunks.length} chunks`,
+    );
 
-    this.logger.log(`[${source}] Generando embeddings...`);
-    const embeddings = await this.embedTexts(chunks);
-
-    const newVectors = chunks.map((chunk, index) => ({
-      chunk,
-      index: this.vectors.length + index,
-      embedding: embeddings[index],
+    let entries = await this.loadFromDatabase(
       source,
-    }));
+      contentHash,
+      chunks.length,
+    );
 
-    this.vectors.push(...newVectors);
+    if (entries) {
+      this.logger.log(`[${source}] Embeddings cargados desde la base de datos`);
+    } else {
+      this.logger.log(`[${source}] Generando embeddings...`);
+      const embeddings = await this.embedTexts(chunks);
+      entries = chunks.map((chunk, index) => ({
+        chunk,
+        index,
+        embedding: embeddings[index],
+        source,
+      }));
+      await this.saveToDatabase(source, contentHash, entries);
+    }
 
-    this.logger.log(`[${source}] Indexación completa: ${newVectors.length} vectores agregados (total: ${this.vectors.length})`);
+    this.vectors = [
+      ...this.vectors.filter((entry) => entry.source !== source),
+      ...entries,
+    ];
+
+    this.logger.log(
+      `[${source}] Indexación completa: ${entries.length} vectores (total: ${this.vectors.length})`,
+    );
+  }
+
+  private async loadFromDatabase(
+    source: string,
+    contentHash: string,
+    expectedChunks: number,
+  ): Promise<VectorEntry[] | null> {
+    try {
+      const rows = await this.chunkRepository.find({
+        where: { source },
+        order: { chunkIndex: 'ASC' },
+      });
+
+      if (
+        rows.length !== expectedChunks ||
+        rows.some((row) => row.contentHash !== contentHash)
+      ) {
+        return null;
+      }
+
+      return rows.map((row) => ({
+        chunk: row.content,
+        index: row.chunkIndex,
+        embedding: row.embedding,
+        source,
+      }));
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo leer el caché de embeddings: ${error instanceof Error ? error.message : error}`,
+      );
+      return null;
+    }
+  }
+
+  private async saveToDatabase(
+    source: string,
+    contentHash: string,
+    entries: VectorEntry[],
+  ): Promise<void> {
+    try {
+      await this.chunkRepository.manager.transaction(async (manager) => {
+        await manager.delete(RagChunk, { source });
+        await manager.insert(
+          RagChunk,
+          entries.map((entry) => ({
+            source,
+            chunkIndex: entry.index,
+            content: entry.chunk,
+            embedding: entry.embedding,
+            contentHash,
+          })),
+        );
+      });
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo guardar el caché de embeddings: ${error instanceof Error ? error.message : error}`,
+      );
+    }
   }
 
   /**

@@ -16,7 +16,11 @@ import { ClientsModule } from './clients/clients.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    // .env.local (desarrollo, no versionado) tiene prioridad sobre .env
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env.local', '.env'],
+    }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -27,9 +31,15 @@ import { ClientsModule } from './clients/clients.module';
         password: config.get('DB_PASS'),
         database: config.get('DB_NAME'),
         charset: 'utf8mb4',
+        // 'Z' = guardar fechas en UTC. Por defecto 'local' para no reinterpretar datos ya guardados.
+        timezone: config.get('DB_TIMEZONE') || 'local',
 
         autoLoadEntities: true,
-        synchronize: process.env.NODE_ENV !== 'production',
+        // El esquema se gestiona con migraciones (npm run migrate).
+        // Solo para desarrollo local: DB_SYNCHRONIZE=true
+        synchronize:
+          process.env.NODE_ENV !== 'production' &&
+          config.get('DB_SYNCHRONIZE') === 'true',
       }),
     }),
     GoogleDocsModule,
@@ -46,4 +56,4 @@ import { ClientsModule } from './clients/clients.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule {}

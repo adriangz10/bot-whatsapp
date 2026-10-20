@@ -10,11 +10,13 @@ import {
 import { Chat } from '../../chats/entities/chat.entity';
 
 @Entity('messages')
+@Index('idx_messages_user_created', ['userId', 'createdAt'])
+@Index('idx_chatId', ['chatId'])
+@Index('idx_createdAt', ['createdAt'])
 export class Message {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Index()
   @Column({ length: 100 })
   userId: string;
 
@@ -27,8 +29,8 @@ export class Message {
   @Column({ type: 'int', nullable: true })
   chatId: number;
 
-  @ManyToOne(() => Chat, (chat) => chat.messages)
-  @JoinColumn({ name: 'chatId' })
+  @ManyToOne(() => Chat, (chat) => chat.messages, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'chatId', foreignKeyConstraintName: 'fk_messages_chat' })
   chat: Chat;
 
   @CreateDateColumn()

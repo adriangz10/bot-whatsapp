@@ -3,11 +3,18 @@ import { AppModule } from './app.module';
 import { WsAdapter } from '@nestjs/platform-ws';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: necesario para validar la firma HMAC del webhook de WhatsApp
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
-  // Habilitar CORS para frontend
+  // CORS_ORIGINS: lista separada por comas. Sin definir, no se permite ningún origen
+  // (el webhook de Meta es servidor a servidor y no necesita CORS).
+  const allowedOrigins = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
   app.enableCors({
-    origin: true, // Acepta cualquier origen
+    origin: allowedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
@@ -16,4 +23,4 @@ async function bootstrap() {
 
   await app.listen(process.env.PORT ?? 3000);
 }
-bootstrap();
+void bootstrap();

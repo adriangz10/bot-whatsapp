@@ -9,7 +9,7 @@ export class EventsService {
     this.server = server;
   }
 
-  emit(event: string, payload: any) {
+  emit(event: string, payload: unknown) {
     if (!this.server) return;
 
     const data = JSON.stringify({ event, payload });

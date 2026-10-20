@@ -5,6 +5,7 @@ import { Chat, ChatStatus, ChatPriority } from './entities/chat.entity';
 import { Message } from '../conversation/entities/message.entity';
 import { UpdateChatDto, CreateChatDto } from './dto/chat.dto';
 import { EventsService } from '../events/events.service';
+import { isDuplicateEntry } from '../common/db-errors';
 
 export interface ChatFilters {
   status?: ChatStatus;
@@ -52,7 +53,9 @@ export class ChatsService {
     }
 
     if (filters.priority) {
-      query.andWhere('chat.priority = :priority', { priority: filters.priority });
+      query.andWhere('chat.priority = :priority', {
+        priority: filters.priority,
+      });
     }
 
     if (filters.search) {
@@ -64,7 +67,9 @@ export class ChatsService {
 
     if (filters.tags && filters.tags.length > 0) {
       // Buscar chats que contengan alguna de las etiquetas
-      query.andWhere('JSON_OVERLAPS(chat.tags, :tags)', { tags: JSON.stringify(filters.tags) });
+      query.andWhere('JSON_OVERLAPS(chat.tags, :tags)', {
+        tags: JSON.stringify(filters.tags),
+      });
     }
 
     // Ordenamiento
@@ -131,7 +136,15 @@ export class ChatsService {
     let chat = await this.findByUserId(userId);
 
     if (!chat) {
-      chat = await this.create({ userId, userName });
+      try {
+        chat = await this.create({ userId, userName });
+      } catch (error) {
+        // Otro proceso lo creó entre el find y el insert
+        if (!isDuplicateEntry(error)) throw error;
+        const existing = await this.findByUserId(userId);
+        if (!existing) throw error;
+        chat = existing;
+      }
     } else if (userName && chat.userName !== userName) {
       chat = (await this.update(chat.id, { userName })) || chat;
     }
@@ -180,7 +193,7 @@ export class ChatsService {
     const unread = await this.chatRepository
       .createQueryBuilder('chat')
       .select('SUM(chat.unreadCount)', 'total')
-      .getRawOne()
+      .getRawOne<{ total: string | null }>()
       .then((result) => Number(result?.total || 0));
 
     const byStatus = await this.getGroupedCount('status');
@@ -189,25 +202,33 @@ export class ChatsService {
     return { total, byStatus, byPriority, unread };
   }
 
-  private async getGroupedCount(field: 'status' | 'priority'): Promise<Record<string, number>> {
+  private async getGroupedCount(
+    field: 'status' | 'priority',
+  ): Promise<Record<string, number>> {
     const result = await this.chatRepository
       .createQueryBuilder('chat')
       .select(`chat.${field}`, field)
       .addSelect('COUNT(*)', 'count')
       .groupBy(`chat.${field}`)
-      .getRawMany();
+      .getRawMany<Record<string, string>>();
 
-    return result.reduce(
-      (acc, item) => {
-        acc[item[field]] = Number(item.count);
-        return acc;
-      },
-      {} as Record<string, number>,
-    );
+    return result.reduce<Record<string, number>>((acc, item) => {
+      acc[item[field]] = Number(item.count);
+      return acc;
+    }, {});
   }
 
+  /** Elimina el chat y todo su historial: si no, el bot recargaría la conversación vieja. */
   async delete(id: number): Promise<void> {
-    await this.chatRepository.delete(id);
+    const chat = await this.chatRepository.findOne({ where: { id } });
+    if (!chat) {
+      return;
+    }
+
+    await this.chatRepository.manager.transaction(async (manager) => {
+      await manager.delete(Message, { userId: chat.userId });
+      await manager.delete(Chat, id);
+    });
   }
 
   isInactive(chat: Chat, timeoutMinutes: number = 30): boolean {
